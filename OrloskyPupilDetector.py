@@ -6,6 +6,8 @@ import tkinter as tk
 import os
 from tkinter import filedialog
 import matplotlib.pyplot as plt
+import time
+import tracker
 
 # Crop the image to maintain a specific aspect ratio (width:height) before resizing. 
 def crop_to_aspect_ratio(image, width=640, height=480):
@@ -40,12 +42,16 @@ def apply_binary_threshold(image, darkestPixelValue, addedThreshold):
 #Finds a square area of dark pixels in the image
 #@param I input image (converted to grayscale during search process)
 #@return a point within the pupil region
-def get_darkest_area(image):
 
-    ignoreBounds = 20 #don't search the boundaries of the image for ignoreBounds pixels
-    imageSkipSize = 10 #only check the darkness of a block for every Nth x and y pixel (sparse sampling)
-    searchArea = 20 #the size of the block to search
-    internalSkipSize = 5 #skip every Nth x and y pixel in the local search area (sparse sampling)
+def get_darkest_area(image):
+    if image is None:
+        print("Error: Image not loaded properly")
+        return None
+
+    ignoreBounds = 20
+    imageSkipSize = 10
+    searchArea = 20
+    internalSkipSize = 5
     
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -54,25 +60,33 @@ def get_darkest_area(image):
     darkest_point = None
 
     # Loop over the image with spacing defined by imageSkipSize, ignoring the boundaries
-    for y in range(ignoreBounds, gray.shape[0] - ignoreBounds, imageSkipSize):
-        for x in range(ignoreBounds, gray.shape[1] - ignoreBounds, imageSkipSize):
-            # Calculate sum of pixel values in the search area, skipping pixels based on internalSkipSize
+    for y in range(ignoreBounds, gray.shape[0] - ignoreBounds - searchArea, imageSkipSize):
+        for x in range(ignoreBounds, gray.shape[1] - ignoreBounds - searchArea, imageSkipSize):
+            # Draw a rectangle on the color image to visualize the block
+            #top_left = (x, y)
+            #bottom_right = (x + searchArea, y + searchArea)
+            #cv2.rectangle(gray, top_left, bottom_right, (0, 0, 255), imageSkipSize)
+            # Display the image with the drawn rectangles
+            #cv2.imshow("Grayscale Image for darkest area get", gray)
+            #cv2.waitKey(1)  # Wait for 200 milliseconds to see the rectangles
+
             current_sum = 0
             num_pixels = 0
             for dy in range(0, searchArea, internalSkipSize):
-                if y + dy >= gray.shape[0]:
+                if (y + dy) >= gray.shape[0]:
                     break
                 for dx in range(0, searchArea, internalSkipSize):
-                    if x + dx >= gray.shape[1]:
+                    if (x + dx) >= gray.shape[1]:
                         break
-                    current_sum += gray[y + dy][x + dx]
+
+                    current_sum = current_sum + gray[y + dy,x + dx].astype(np.int32)
                     num_pixels += 1
 
             # Update the darkest point if the current block is darker
             if current_sum < min_sum and num_pixels > 0:
                 min_sum = current_sum
                 darkest_point = (x + searchArea // 2, y + searchArea // 2)  # Center of the block
-
+            
     return darkest_point
 
 #mask all pixels outside a square defined by center and size
@@ -276,7 +290,7 @@ def check_ellipse_goodness(binary_image, contour, debug_mode_on):
     
     return ellipse_goodness
 
-def process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, debug_mode_on, render_cv_window):
+def process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, render_cv_window, lock_mode_on, lockpos_threshold, arduino):
   
     final_rotated_rect = ((0,0),(0,0),0)
 
@@ -340,7 +354,24 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
             final_image = dilated_image
     
     if debug_mode_on:
-        cv2.imshow("Reduced contours of best thresholded image", ellipse_reduced_contours)
+        # Ensure ellipse_reduced_contours is a valid image
+        if isinstance(ellipse_reduced_contours, np.ndarray):
+            cv2.imshow("Reduced contours of best thresholded image", ellipse_reduced_contours)
+        else:
+            print("Error: ellipse_reduced_contours is not a valid image.")
+            print("type ellipse_reduced_contours", type(ellipse_reduced_contours))
+            print("ellipse_reduced_contours", ellipse_reduced_contours)
+
+    # If darkest point position hover around a particular location for more than 5 seconds, or if "L" is pressed then lockpos
+    if lock_mode_on:
+            print("lock_mode_on running,  track_darkest_pt ", track_darkest_point,  " darkest_point ", darkest_point)
+            if (track_darkest_point == -1):
+                print("setting")
+                track_darkest_point = darkest_point
+            else:
+                euclid_dist =  math.dist(track_darkest_point, darkest_point) 
+                print("mathing, euclid dist: ", euclid_dist)
+                frame = lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino)
 
     test_frame = frame.copy()
     
@@ -350,13 +381,15 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
         #cv2.drawContours(test_frame, final_contours, -1, (255, 255, 255), 1)
         ellipse = cv2.fitEllipse(final_contours[0])
         final_rotated_rect = ellipse
-        cv2.ellipse(test_frame, ellipse, (55, 255, 0), 2)
         #cv2.circle(test_frame, darkest_point, 3, (255, 125, 125), -1)
         center_x, center_y = map(int, ellipse[0])
         cv2.circle(test_frame, (center_x, center_y), 3, (255, 255, 0), -1)
         cv2.putText(test_frame, "SPACE = play/pause", (10,410), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #space
         cv2.putText(test_frame, "Q      = quit", (10,430), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #quit
         cv2.putText(test_frame, "D      = show debug", (10,450), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #debug
+
+        if lock_mode_on == False:
+            cv2.ellipse(test_frame, ellipse, (255, 0, 0), 2)
 
     if render_cv_window:
         cv2.imshow('best_thresholded_image_contours_on_frame', test_frame)
@@ -370,7 +403,7 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
         cv2.ellipse(gray_frame, ellipse, (255,255,255), 2)  # Draw with white color and thickness of 2
 
     #process_frames now returns a rotated rectangle for the ellipse for easy access
-    return final_rotated_rect
+    return final_rotated_rect, final_contours
 
 
 # Finds the pupil in an individual frame and returns the center point
@@ -398,21 +431,21 @@ def process_frame(frame):
     thresholded_image_relaxed = mask_outside_square(thresholded_image_relaxed, darkest_point, 250)
     
     #take the three images thresholded at different levels and process them
-    final_rotated_rect = process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, False, False)
+    final_rotated_rect, final_contours = process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, -1, False, False, False, 5)
     
-    return final_rotated_rect
+    return final_rotated_rect, final_contours
 
-# Loads a video and finds the pupil in each frame
-def process_video(video_path, input_method):
-
+def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, lockpos_threshold=5, arduino=None):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4 format
     out = cv2.VideoWriter('C:/Storage/Source Videos/output_video.mp4', fourcc, 30.0, (640, 480))  # Output video filename, codec, frame rate, and frame size
 
     if input_method == 1:
         cap = cv2.VideoCapture(video_path)
     elif input_method == 2:
-        cap = cv2.VideoCapture(00, cv2.CAP_DSHOW)  # Camera input
-        cap.set(cv2.CAP_PROP_EXPOSURE, -5)
+        cap = cv2.VideoCapture(0)  # Camera input
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2048) # Resolution set to 2k (2048, 1080)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        cap.set(cv2.CAP_PROP_EXPOSURE, 0)
     else:
         print("Invalid video source.")
         return
@@ -422,8 +455,8 @@ def process_video(video_path, input_method):
         return
     
     debug_mode_on = False
-    
-    temp_center = (0,0)
+    lock_mode_on = False
+    track_darkest_point = -1
 
     while True:
         ret, frame = cap.read()
@@ -433,7 +466,10 @@ def process_video(video_path, input_method):
         # Crop and resize frame
         frame = crop_to_aspect_ratio(frame)
 
-        #find the darkest point
+        # Apply zoom effect
+        frame = zoom_frame(frame, zoom_factor, zoom_center)
+
+        # Find the darkest point
         darkest_point = get_darkest_area(frame)
 
         if debug_mode_on:
@@ -445,48 +481,147 @@ def process_video(video_path, input_method):
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         darkest_pixel_value = gray_frame[darkest_point[1], darkest_point[0]]
         
-        # apply thresholding operations at different levels
-        # at least one should give us a good ellipse segment
-        thresholded_image_strict = apply_binary_threshold(gray_frame, darkest_pixel_value, 5)#lite
+        # Apply thresholding operations at different levels
+        thresholded_image_strict = apply_binary_threshold(gray_frame, darkest_pixel_value, 5)  # lite
         thresholded_image_strict = mask_outside_square(thresholded_image_strict, darkest_point, 250)
 
-        thresholded_image_medium = apply_binary_threshold(gray_frame, darkest_pixel_value, 15)#medium
+        thresholded_image_medium = apply_binary_threshold(gray_frame, darkest_pixel_value, 15)  # medium
         thresholded_image_medium = mask_outside_square(thresholded_image_medium, darkest_point, 250)
         
-        thresholded_image_relaxed = apply_binary_threshold(gray_frame, darkest_pixel_value, 25)#heavy
+        thresholded_image_relaxed = apply_binary_threshold(gray_frame, darkest_pixel_value, 25)  # heavy
         thresholded_image_relaxed = mask_outside_square(thresholded_image_relaxed, darkest_point, 250)
         
-        #take the three images thresholded at different levels and process them
-        pupil_rotated_rect = process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, debug_mode_on, True)
-        
+        # Take the three images thresholded at different levels and process them
+        print("lock_mode ", lock_mode_on)
+        pupil_rotated_rect, final_contours = process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, True, lock_mode_on, lockpos_threshold, arduino)
+
         key = cv2.waitKey(1) & 0xFF
         
-        if key == ord('d') and debug_mode_on == False:  # Press 'q' to start debug mode
+        if key == ord('d') and not debug_mode_on:
             debug_mode_on = True
-        elif key == ord('d') and debug_mode_on == True:
+        elif key == ord('d') and debug_mode_on:
             debug_mode_on = False
             cv2.destroyAllWindows()
-        if key == ord('q'):  # Press 'q' to quit
-            out.release()
-            break   
-        elif key == ord(' '):  # Press spacebar to start/stop
+
+        if key == ord('q'):
+            break
+        elif key == ord(' '):
             while True:
                 key = cv2.waitKey(1) & 0xFF
-                if key == ord(' '):  # Press spacebar again to resume
+                if key == ord(' '):
                     break
-                elif key == ord('q'):  # Press 'q' to quit
+                elif key == ord('q'):
                     break
+        if key == ord('l') and not lock_mode_on:
+            print("Setting lock")
+            track_darkest_point = darkest_point
+            lock_mode_on = True
+        elif key == ord('l') and lock_mode_on:
+            print("Resetting lock")
+            track_darkest_point = -1
+            lock_mode_on = False
 
+    arduino.close()
     cap.release()
     out.release()
     cv2.destroyAllWindows()
+
+def zoom_frame(frame, zoom_factor, center=None):
+    """
+    Zooms into a specific area of the frame based on the zoom factor.
+    
+    :param frame: The input frame (image) to zoom into.
+    :param zoom_factor: The factor by which to zoom. Values greater than 1 will zoom in.
+    :param center: The center of the zoom. If None, zooms into the center of the frame.
+    :return: The zoomed-in frame.
+    """
+    (h, w) = frame.shape[:2]
+    
+    if center is None:
+        center = (w // 2, h // 2)
+    
+    # Calculate the new dimensions
+    new_w = int(w / zoom_factor)
+    new_h = int(h / zoom_factor)
+    
+    # Calculate the cropping box
+    x = max(center[0] - new_w // 2, 0)
+    y = max(center[1] - new_h // 2, 0)
+    x2 = min(x + new_w, w)
+    y2 = min(y + new_h, h)
+    
+    # Crop and resize the frame
+    cropped_frame = frame[y:y2, x:x2]
+    zoomed_frame = cv2.resize(cropped_frame, (w, h))
+    
+    return zoomed_frame
+
+
+##Lockpos 
+def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets):
+
+    ##print("lockpos checking")
+
+    if final_contours != []:
+
+        if (euclid_dist > lockpos_threshold):
+            frame = fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
+            #tracker.check_connection(arduino_deets)
+            if tracker.buzzer(arduino_deets, 'H') == 1:
+                print("HIGH command sent and acknowledged.")
+            elif tracker.buzzer(arduino_deets, 'H') == 2:
+                print("Prog Ended.")
+                return
+            else:
+                print("Failed to send HIGH command or no acknowledgment received.")
+            print("Out of thres")
+            ##cv2.imshow('Darkest image patch', frame)
+        else:
+            frame = fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
+            print("whithin threshold")
+            #tracker.check_connection(arduino_deets)
+            if tracker.buzzer(arduino_deets, 'L') == 1:
+                print("LOW command sent and acknowledged.")
+            elif tracker.buzzer(arduino_deets, 'L') == 2:
+                print("Prog Ended.")
+
+                # Need to find a way to end the program, dicuss how to end the program
+                return
+            else:
+                print("Failed to send LOW command or no acknowledgment received.")
+            
+            ##cv2.imshow('Darkest image patch', frame)
+
+            ## Store lockpos somewhere
+            ## Compare lockpos with darkest_pt
+            ## Find Euclid dist 
+            ## If dist > thres, change eclispe colour
+            ## Else change back
+            ## 
+
+        return frame
+    
+    return frame
+
 
 #Prompts the user to select a video file if the hardcoded path is not found
 #This is just for my debugging convenience :)
 def select_video():
     root = tk.Tk()
     root.withdraw()  # Hide the main window
-    video_path = 'C:/Google Drive/Eye Tracking/fulleyetest.mp4'
+
+    video_path = '/Users/Dion/project_repos/visual_field_test/EyeTracker/eye_test.mp4'
+    arduino_port = '/dev/cu.usbserial-130'
+    baud_rate = 115200
+    arduino_deets = [arduino_port, baud_rate]
+    
+    # Connect to Arduino
+    time.sleep(1.5)
+    arduino = tracker.connect_to_arduino(arduino_port,baud_rate)
+    if arduino is None:
+        print("Failed to connect to Arduino.")
+        return
+
     if not os.path.exists(video_path):
         print("No file found at hardcoded path. Please select a video file.")
         video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("Video Files", "*.mp4;*.avi")])
@@ -494,8 +629,13 @@ def select_video():
             print("No file selected. Exiting.")
             return
             
-    #second parameter is 1 for video 2 for webcam
-    process_video(video_path, 1)
+    # first parameter is for path of video
+    # second parameter is 1 for video 2 for webcam
+    # third parameter is for zoom_factor
+    # fourth parameter is for zoom_center, none == (center,center)
+    # fifth parameter is for lock_pos_threshold 
+    # six parameter is the arduino port
+    process_video(video_path, 2, 7, None, 90, arduino)
 
 if __name__ == "__main__":
     select_video()
