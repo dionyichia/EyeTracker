@@ -290,8 +290,17 @@ def check_ellipse_goodness(binary_image, contour, debug_mode_on):
     
     return ellipse_goodness
 
-def process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, render_cv_window, lock_mode_on, lockpos_threshold, arduino):
-  
+def process_frames(prev_threshold_index, threshold_swtich_confidence_margin, 
+                   thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, 
+                   frame, gray_frame, darkest_point, track_darkest_point, 
+                   debug_mode_on, render_cv_window, 
+                   lock_mode_on, lockpos_threshold,
+                   arduino, prev_command
+                   ):
+    """
+
+    
+    """
     final_rotated_rect = ((0,0),(0,0),0)
 
     image_array = [thresholded_image_relaxed, thresholded_image_medium, thresholded_image_strict] #holds images
@@ -299,7 +308,7 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
     final_image = image_array[0] #holds return array
     final_contours = [] #holds final contours
     ellipse_reduced_contours = [] #holds an array of the best contour points from the fitting process
-    goodness = 0 #goodness value for best ellipse
+    goodness = [] # goodness arr for to store goodness for all ellipse
     best_array = 0 
     kernel_size = 5  # Size of the kernel (5x5)
     kernel = np.ones((kernel_size, kernel_size), np.uint8)
@@ -308,6 +317,8 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
     gray_copy3 = gray_frame.copy()
     gray_copies = [gray_copy1, gray_copy2, gray_copy3]
     final_goodness = 0
+
+    best_image_threshold_index = 1
     
     #iterate through binary images and see which fits the ellipse best
     for i in range(1,4):
@@ -323,8 +334,8 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
 
         if len(reduced_contours) > 0 and len(reduced_contours[0]) > 5:
             current_goodness = check_ellipse_goodness(dilated_image, reduced_contours[0], debug_mode_on)
-            #gray_copy = gray_frame.copy()
-            #cv2.drawContours(gray_copies[i-1], reduced_contours, -1, (255), 1)
+            gray_copy = gray_frame.copy()
+            cv2.drawContours(gray_copies[i-1], reduced_contours, -1, (255), 1)
             ellipse = cv2.fitEllipse(reduced_contours[0])
             if debug_mode_on: #show contours 
                 cv2.imshow(name_array[i-1] + " threshold", gray_copies[i-1])
@@ -335,24 +346,48 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
             cv2.ellipse(gray_copies[i-1], ellipse, (255, 0, 0), 2)  # Draw with specified color and thickness of 2
             font = cv2.FONT_HERSHEY_SIMPLEX  # Font type
             
-            final_goodness = current_goodness[0]*total_pixels[0]*total_pixels[0]*total_pixels[1]
+            current = current_goodness[0]*total_pixels[0]*total_pixels[0]*total_pixels[1]
             
             #show intermediary images with text output
             if debug_mode_on:
                 cv2.putText(gray_copies[i-1], "%filled:     " + str(current_goodness[0])[:5] + " (percentage of filled contour pixels inside ellipse)", (10,30), font, .55, (255,255,255), 1) #%filled
                 cv2.putText(gray_copies[i-1], "abs. pix:   " + str(total_pixels[0]) + " (total pixels under fit ellipse)", (10,50), font, .55, (255,255,255), 1    ) #abs pix
                 cv2.putText(gray_copies[i-1], "pix ratio:  " + str(total_pixels[1]) + " (total pix under fit ellipse / contour border pix)", (10,70), font, .55, (255,255,255), 1    ) #abs pix
-                cv2.putText(gray_copies[i-1], "final:     " + str(final_goodness) + " (filled*ratio)", (10,90), font, .55, (255,255,255), 1) #skewedness
+                cv2.putText(gray_copies[i-1], "final:     " + str(current) + " (filled*ratio)", (10,90), font, .55, (255,255,255), 1) #skewedness
                 cv2.imshow(name_array[i-1] + " threshold", image_array[i-1])
                 cv2.imshow(name_array[i-1], gray_copies[i-1])
+        
+            goodness.append(current)
+            ellipse_reduced_contours.append(total_pixels[2])
+            final_contours.append(reduced_contours)
 
-        if final_goodness > 0 and final_goodness > goodness: 
-            goodness = final_goodness
-            ellipse_reduced_contours = total_pixels[2]
-            best_image = image_array[i-1]
-            final_contours = reduced_contours
-            final_image = dilated_image
+            # If the current iteration has the best goodness set it as best_image_threshold_index
+            if current > 0 and current == max(current, final_goodness): 
+                best_image_threshold_index = i-1
+                final_goodness = current
+                
+        else:
+            goodness.append(0)
+            ellipse_reduced_contours.append([])
+            final_contours.append([])
+
+        
+    # Confidence-Based Threshold Switching, to prevent flickering caused by toggling between thresholds, only switch if goodness difference btw thres is significant
+    # If the threshold index used in the previous frame and cur frame are not the same, apply confidence check
+    if best_image_threshold_index != prev_threshold_index:
+        # Assign the current goodness of prev_threshold_index to prev_goodness
+        prev_goodness = goodness[prev_threshold_index] if prev_threshold_index >= 0 else 0
     
+        # If the best_image index's goodness is better than prev_goodness by the stipluted margin, switch images, else dont 
+        if goodness[best_image_threshold_index] > prev_goodness * (1 + threshold_swtich_confidence_margin):
+            print("Changed prev_threshold_index ", prev_threshold_index, " prev_goodness ", prev_goodness, " cur index ", best_image_threshold_index, " goodness ", goodness[best_image_threshold_index])
+            prev_threshold_index = best_image_threshold_index
+
+
+    ellipse_reduced_contours = ellipse_reduced_contours[prev_threshold_index]
+    final_contours = final_contours[prev_threshold_index]
+    final_image = dilated_image
+
     if debug_mode_on:
         # Ensure ellipse_reduced_contours is a valid image
         if isinstance(ellipse_reduced_contours, np.ndarray):
@@ -371,7 +406,7 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
             else:
                 euclid_dist =  math.dist(track_darkest_point, darkest_point) 
                 print("mathing, euclid dist: ", euclid_dist)
-                frame = lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino)
+                frame, prev_command = lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino, prev_command)
 
     test_frame = frame.copy()
     
@@ -403,7 +438,7 @@ def process_frames(thresholded_image_strict, thresholded_image_medium, threshold
         cv2.ellipse(gray_frame, ellipse, (255,255,255), 2)  # Draw with white color and thickness of 2
 
     #process_frames now returns a rotated rectangle for the ellipse for easy access
-    return final_rotated_rect, final_contours
+    return final_rotated_rect, final_contours, prev_threshold_index, prev_command
 
 
 # Finds the pupil in an individual frame and returns the center point
@@ -435,7 +470,7 @@ def process_frame(frame):
     
     return final_rotated_rect, final_contours
 
-def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, lockpos_threshold=5, arduino=None):
+def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, lockpos_threshold=5, arduino_port=None, threshold_swtich_confidence_margin=1):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4 format
     out = cv2.VideoWriter('C:/Storage/Source Videos/output_video.mp4', fourcc, 30.0, (640, 480))  # Output video filename, codec, frame rate, and frame size
 
@@ -457,6 +492,12 @@ def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, loc
     debug_mode_on = False
     lock_mode_on = False
     track_darkest_point = -1
+
+    # Track last index used, use to implement Confidence-Based Threshold Switching btw threshold to reduce flickering
+    prev_threshold_index = 0
+
+    # Track last command sent to arduino, only send command if there is a change in command
+    prev_command = 'L'
 
     while True:
         ret, frame = cap.read()
@@ -493,7 +534,10 @@ def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, loc
         
         # Take the three images thresholded at different levels and process them
         print("lock_mode ", lock_mode_on)
-        pupil_rotated_rect, final_contours = process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, True, lock_mode_on, lockpos_threshold, arduino)
+        pupil_rotated_rect, final_contours, threshold_index = process_frames(prev_threshold_index, threshold_swtich_confidence_margin, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, True, lock_mode_on, lockpos_threshold, arduino_port, prev_command)
+
+        # Set the current threshold being used as the prev threshold index, once image processed.
+        prev_threshold_index = threshold_index
 
         key = cv2.waitKey(1) & 0xFF
         
@@ -521,7 +565,7 @@ def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, loc
             track_darkest_point = -1
             lock_mode_on = False
 
-    arduino.close()
+    arduino_port.close()
     cap.release()
     out.release()
     cv2.destroyAllWindows()
@@ -556,48 +600,36 @@ def zoom_frame(frame, zoom_factor, center=None):
     
     return zoomed_frame
 
-
 ##Lockpos 
-def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets):
-
-    ##print("lockpos checking")
-
+def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets, prev_command):
     if final_contours != []:
 
         if (euclid_dist > lockpos_threshold):
             frame = fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
             #tracker.check_connection(arduino_deets)
-            if tracker.buzzer(arduino_deets, 'H') == 1:
-                print("HIGH command sent and acknowledged.")
-            elif tracker.buzzer(arduino_deets, 'H') == 2:
-                print("Prog Ended.")
-                return
-            else:
-                print("Failed to send HIGH command or no acknowledgment received.")
+            if arduino_deets:
+                if tracker.buzzer(arduino_deets, 'H', prev_command) == 1:
+                    print("HIGH command sent and acknowledged.")
+                elif tracker.buzzer(arduino_deets, 'H', prev_command) == 2:
+                    print("Prog Ended.")
+                    return
+                else:
+                    print("Failed to send HIGH command or no acknowledgment received.")
             print("Out of thres")
             ##cv2.imshow('Darkest image patch', frame)
         else:
             frame = fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
             print("whithin threshold")
-            #tracker.check_connection(arduino_deets)
-            if tracker.buzzer(arduino_deets, 'L') == 1:
-                print("LOW command sent and acknowledged.")
-            elif tracker.buzzer(arduino_deets, 'L') == 2:
-                print("Prog Ended.")
+            if arduino_deets:
+                if tracker.buzzer(arduino_deets, 'L', prev_command) == 1:
+                    print("LOW command sent and acknowledged.")
+                elif tracker.buzzer(arduino_deets, 'L', prev_command) == 2:
+                    print("Prog Ended.")
 
                 # Need to find a way to end the program, dicuss how to end the program
                 return
             else:
                 print("Failed to send LOW command or no acknowledgment received.")
-            
-            ##cv2.imshow('Darkest image patch', frame)
-
-            ## Store lockpos somewhere
-            ## Compare lockpos with darkest_pt
-            ## Find Euclid dist 
-            ## If dist > thres, change eclispe colour
-            ## Else change back
-            ## 
 
         return frame
     
@@ -611,16 +643,21 @@ def select_video():
     root.withdraw()  # Hide the main window
 
     video_path = '/Users/Dion/project_repos/visual_field_test/EyeTracker/eye_test.mp4'
+
+    connect_to_arduino = False
     arduino_port = '/dev/cu.usbserial-130'
     baud_rate = 115200
     arduino_deets = [arduino_port, baud_rate]
     
-    # Connect to Arduino
-    time.sleep(1.5)
-    arduino = tracker.connect_to_arduino(arduino_port,baud_rate)
-    if arduino is None:
-        print("Failed to connect to Arduino.")
-        return
+    if connect_to_arduino:
+        # Connect to Arduino
+        time.sleep(1.5)
+        arduino = tracker.connect_to_arduino(arduino_port,baud_rate)
+        if arduino is None:
+            print("Failed to connect to Arduino.")
+            return
+    else:
+        arduino = None
 
     if not os.path.exists(video_path):
         print("No file found at hardcoded path. Please select a video file.")
@@ -633,9 +670,10 @@ def select_video():
     # second parameter is 1 for video 2 for webcam
     # third parameter is for zoom_factor
     # fourth parameter is for zoom_center, none == (center,center)
-    # fifth parameter is for lock_pos_threshold 
+    # fifth parameter is for lock_pos_threshold , old 90
     # six parameter is the arduino port
-    process_video(video_path, 2, 7, None, 90, arduino)
+    # seven parameter is the threshold confidence 
+    process_video(video_path, input_method=2, zoom_factor=7, zoom_center=None, lockpos_threshold=90, arduino_port=arduino, threshold_swtich_confidence_margin=2)
 
 if __name__ == "__main__":
     select_video()

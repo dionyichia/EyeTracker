@@ -24,8 +24,8 @@ def read_button_state():
         print("Button is not pressed")
         return False
 
-def readtime(start_time):
-    click_time = time.time() - start_time   
+def readtime(cur_time):
+    click_time = time.time() - cur_time   
     return click_time
 
 
@@ -55,7 +55,7 @@ def check_connection(arduino):
         print(f"Error while checking connection: {e}")
         return False
 
-def buzzer(arduino, command):
+def buzzer(arduino, command, prev_command):
     # Check if the Arduino is properly connected before sending commands
     #if not check_connection(port, baudrate):
         #print("Failed to communicate with Arduino. Check the connection.")
@@ -65,32 +65,36 @@ def buzzer(arduino, command):
     #arduino = connect_to_arduino(port, baudrate)
 
     # Send the command if connection check passes
+
     print(f"Sending command: {command}")
     if command in ['H', 'L']:
-        try:
-            if command == 'H':
-                arduino.write(('H').encode('utf-8'))  # Send the command to Arduino
-            else:
-                arduino.write(('L').encode('utf-8'))  # Send the command to Arduino 
-            arduino.flush() 
+        if command != prev_command:
+            try:
+                if command == 'H':
+                    arduino.write(('H').encode('utf-8'))  # Send the command to Arduino
+                else:
+                    arduino.write(('L').encode('utf-8'))  # Send the command to Arduino 
+                arduino.flush() 
 
-            # Wait for acknowledgment
-            start_time = time.time()
-            while time.time() - start_time < 1:  # 1 second timeout
-                if arduino.in_waiting > 0:
-                    response = arduino.readline().decode('utf-8').strip()
-                    if response == 'O':
-                        print(f"Command '{command}' acknowledged by Arduino.")
-                        return 1
-                    else:
-                        print(f"Response: '{response}' by Arduino.")
-                        return 2
-                
-            print(f"No acknowledgment received for command '{command}'.")
-            return 0
-        except serial.SerialException as e:
-            print(f"Error sending command: {e}")
-            return 0
+                # Wait for acknowledgment
+                start_time = time.time()
+                while time.time() - start_time < 1:  # 1 second timeout
+                    if arduino.in_waiting > 0:
+                        response = arduino.readline().decode('utf-8').strip()
+                        if response == 'O':
+                            print(f"Command '{command}' acknowledged by Arduino.")
+                            return 1
+                        else:
+                            print(f"Response: '{response}' by Arduino.")
+                            return 2
+                    
+                print(f"No acknowledgment received for command '{command}'.")
+                return 0
+            except serial.SerialException as e:
+                print(f"Error sending command: {e}")
+                return 0
+        else:
+            return 1
     else:
         print("Invalid input. Please enter HIGH or LOW.")
         return 0
