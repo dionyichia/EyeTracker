@@ -1,0 +1,15 @@
+# Arduino
+*.hex
+*.elf
+build/
+.DS_Store
+sync_arduino.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
