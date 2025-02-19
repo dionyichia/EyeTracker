@@ -534,7 +534,7 @@ def process_video(video_path, input_method, zoom_factor=5, zoom_center=None, loc
         
         # Take the three images thresholded at different levels and process them
         print("lock_mode ", lock_mode_on)
-        pupil_rotated_rect, final_contours, threshold_index = process_frames(prev_threshold_index, threshold_swtich_confidence_margin, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, True, lock_mode_on, lockpos_threshold, arduino_port, prev_command)
+        pupil_rotated_rect, final_contours, threshold_index, prev_command = process_frames(prev_threshold_index, threshold_swtich_confidence_margin, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, track_darkest_point, debug_mode_on, True, lock_mode_on, lockpos_threshold, arduino_port, prev_command)
 
         # Set the current threshold being used as the prev threshold index, once image processed.
         prev_threshold_index = threshold_index
@@ -602,22 +602,29 @@ def zoom_frame(frame, zoom_factor, center=None):
 
 ##Lockpos 
 def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets, prev_command):
+    command = 'H'
+
     if final_contours != []:
 
         if (euclid_dist > lockpos_threshold):
             frame = fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
             #tracker.check_connection(arduino_deets)
+            command = 'H'
+
             if arduino_deets:
                 if tracker.buzzer(arduino_deets, 'H', prev_command) == 1:
                     print("HIGH command sent and acknowledged.")
+
                 elif tracker.buzzer(arduino_deets, 'H', prev_command) == 2:
                     print("Prog Ended.")
-                    return
+                    return frame, command
                 else:
                     print("Failed to send HIGH command or no acknowledgment received.")
             print("Out of thres")
             ##cv2.imshow('Darkest image patch', frame)
         else:
+            command = 'L'
+
             frame = fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
             print("whithin threshold")
             if arduino_deets:
@@ -627,13 +634,13 @@ def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets
                     print("Prog Ended.")
 
                 # Need to find a way to end the program, dicuss how to end the program
-                return
+                return frame, command
             else:
                 print("Failed to send LOW command or no acknowledgment received.")
 
-        return frame
+        return frame, command
     
-    return frame
+    return frame, command
 
 
 #Prompts the user to select a video file if the hardcoded path is not found
@@ -644,8 +651,8 @@ def select_video():
 
     video_path = '/Users/Dion/project_repos/visual_field_test/EyeTracker/eye_test.mp4'
 
-    connect_to_arduino = False
-    arduino_port = '/dev/cu.usbserial-130'
+    connect_to_arduino = True
+    arduino_port = '/dev/cu.usbserial-120' #'/dev/cu.usbserial-130'
     baud_rate = 115200
     arduino_deets = [arduino_port, baud_rate]
     

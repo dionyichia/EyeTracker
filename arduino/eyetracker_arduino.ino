@@ -1,11 +1,11 @@
 #include <Servo.h>
 
+const int buzzer_pin = 3;
+const int button_pin = 5;
 const int servo1 = 9;       // first servo
 const int servo2 = 10;      // second servo
-const int button_pin = 3;
-const int laser_pin = 5;
-const int buzzer_pin = 6;
 const int led_pin = 12;
+const int laser_pin = 13;
 
 const int point_duration = 5000; // wait time before shifting to next point
 const int laser_duration = 2000; // duration for laser to be turned on
@@ -125,7 +125,7 @@ void loop() {
     
       if (button_state == LOW) {
         if (laser_state == LOW) {
-          Serial.println("Wrong press turn on buzzer");
+          // Serial.println("Wrong press turn on buzzer");
           digitalWrite(buzzer_pin, HIGH);
           buzzer_state = HIGH;
           buzzer_start_time = current_time;
@@ -134,7 +134,7 @@ void loop() {
         // If laser is ON and button is pressed, turn off laser
         else {
           // Turn off laser
-          Serial.println("laser off");
+          // Serial.println("laser off");
           digitalWrite(laser_pin, LOW);
           laser_state = LOW;
           laser_flag = LOW;
@@ -154,29 +154,29 @@ void loop() {
   
   // Communicate with Python Script
   if (Serial.available() > 0) {
+    // Serial.println("reading");
+
       // Clear the input buffer first
       while (Serial.available()) {
         char command = Serial.read();
-        Serial.println(command);
         
         if (command == 'H') {
           // digitalWrite(buzzer_pin, HIGH);       
           // buzzer_state = HIGH;
           // buzzer_start_time = current_time;
           // laser_state = HIGH;
-          // Serial.println('O');
-
           digitalWrite(led_pin, HIGH);  
           led_state = HIGH;
+          Serial.println('O');
+          // Serial.println('fire');
           
         } else if (command == 'L') {
           // digitalWrite(buzzer_pin, LOW);  
           // buzzer_state = LOW;
           // laser_state = LOW;
-          // Serial.println('O');
-
           digitalWrite(led_pin, LOW);  
           led_state = LOW;
+          Serial.println('O');
         }
       }
   }
@@ -188,7 +188,7 @@ void loop() {
               digitalWrite(laser_pin, HIGH);
               laser_state = HIGH;
               laser_start_time = current_time;  // Reset start time for duration tracking
-              Serial.println("on laser");
+              // Serial.println("on laser");
           }
       }
       else if (current_time - laser_start_time >= laser_duration) {
@@ -196,7 +196,7 @@ void loop() {
           digitalWrite(laser_pin, LOW);
           laser_state = LOW;
           laser_flag = LOW;
-          Serial.println("off laser");
+          // Serial.println("off laser");
       }
   }
 
@@ -204,15 +204,15 @@ void loop() {
     if (current_time - buzzer_start_time >= buzzer_duration) {
         digitalWrite(buzzer_pin, LOW);  // Turn off the buzzer
         buzzer_state = LOW;
-        digitalWrite(led_pin, LOW);  // Turn off the LED
-        led_state = LOW;
+        // digitalWrite(led_pin, LOW);  // Turn off the LED
+        // led_state = LOW;
     }
   }
   else {                              
       digitalWrite(buzzer_pin, LOW);
       buzzer_state = LOW;
-      digitalWrite(led_pin, LOW);  // Turn off the LED
-      led_state = LOW;
+      // digitalWrite(led_pin, LOW);  // Turn off the LED
+      // led_state = LOW;
   }
 
   //  To end the program
