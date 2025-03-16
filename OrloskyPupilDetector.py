@@ -651,7 +651,7 @@ def select_video():
 
     video_path = '/Users/Dion/project_repos/visual_field_test/EyeTracker/eye_test.mp4'
 
-    connect_to_arduino = True
+    connect_to_arduino = False
     arduino_port = '/dev/cu.usbserial-120' #'/dev/cu.usbserial-130'
     baud_rate = 115200
     arduino_deets = [arduino_port, baud_rate]
@@ -680,7 +680,7 @@ def select_video():
     # fifth parameter is for lock_pos_threshold , old 90
     # six parameter is the arduino port
     # seven parameter is the threshold confidence 
-    process_video(video_path, input_method=2, zoom_factor=7, zoom_center=None, lockpos_threshold=90, arduino_port=arduino, threshold_swtich_confidence_margin=2)
+    process_video(video_path, input_method=2, zoom_factor=6, zoom_center=None, lockpos_threshold=20, arduino_port=arduino, threshold_swtich_confidence_margin=2)
 
 if __name__ == "__main__":
     select_video()
