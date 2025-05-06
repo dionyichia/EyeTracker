@@ -645,11 +645,15 @@ def lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets
 
 #Prompts the user to select a video file if the hardcoded path is not found
 #This is just for my debugging convenience :)
+
+import os
 def select_video():
     root = tk.Tk()
     root.withdraw()  # Hide the main window
 
-    video_path = '/Users/Dion/project_repos/visual_field_test/EyeTracker/eye_test.mp4'
+    video_path = './assets/eye_test.mp4'
+    abs_path = os.path.abspath(video_path)    # Get absolute path
+    print(abs_path)
 
     connect_to_arduino = False
     arduino_port = '/dev/cu.usbserial-120' #'/dev/cu.usbserial-130'
@@ -666,7 +670,7 @@ def select_video():
     else:
         arduino = None
 
-    if not os.path.exists(video_path):
+    if not os.path.exists(abs_path):
         print("No file found at hardcoded path. Please select a video file.")
         video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("Video Files", "*.mp4;*.avi")])
         if not video_path:
@@ -680,7 +684,8 @@ def select_video():
     # fifth parameter is for lock_pos_threshold , old 90
     # six parameter is the arduino port
     # seven parameter is the threshold confidence 
-    process_video(video_path, input_method=2, zoom_factor=6, zoom_center=None, lockpos_threshold=20, arduino_port=arduino, threshold_swtich_confidence_margin=2)
+    process_video(abs_path, input_method=2, zoom_factor=1, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
+    # process_video(abs_path, input_method=2, zoom_factor=8, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
 
 if __name__ == "__main__":
     select_video()

@@ -34,7 +34,8 @@ Servo myservo1;  // create servo object to control a servo
 Servo myservo2;  // create servo object to control a servo
 
 // Set coordinates of laser points (4), (1), (2), (3); (Y-axis, X-axis)
-int myPoints[4][2] = {{75, 10}, {70, 60}, {20, 60}, {30, 15}}; 
+int myPoints[4][2] = {{75, 120}, {70, 60}, {20, 60}, {30, 110}}; 
+// int myPoints[4][2] = {{75, 10}, {70, 60}, {20, 60}, {30, 15}}; Laser turret n left side of the booth
 
 // Count the number of laser points
 int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
@@ -216,7 +217,7 @@ void loop() {
   }
 
   //  To end the program
-  if(current_time > 20000) {
+  if(current_time > 100000) {
     //Send counter back to python script
     Serial.println(click_counter);  // Send counter value
     Serial.println(click_tracker);  // Send counter value
