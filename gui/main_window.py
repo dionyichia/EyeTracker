@@ -11,8 +11,8 @@ from PyQt6.QtGui import QIcon, QAction, QKeySequence
 from gui.calibration_view import CalibrationView
 from gui.test_view import TestView
 from gui.results_view import ResultsView
-from core.pupil_fitter import EyeTracker
-from core.tracker import ArduinoTracker
+# from core.pupil_fitter import EyeTracker
+# from core.tracker import ArduinoTracker
 
 
 class MainWindow(QMainWindow):
@@ -152,31 +152,32 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.results_view)
     
     def connect_devices(self):
-        """Connect to Arduino and camera"""
-        try:
-            # Initialize eye tracker
-            self.eye_tracker = EyeTracker()
+        # """Connect to Arduino and camera"""
+        # try:
+        #     # Initialize eye tracker
+        #     self.eye_tracker = EyeTracker()
             
-            # Initialize Arduino tracker
-            self.arduino_tracker = ArduinoTracker()
-            success = self.arduino_tracker.connect()
+        #     # Initialize Arduino tracker
+        #     self.arduino_tracker = ArduinoTracker()
+        #     success = self.arduino_tracker.connect()
             
-            if success:
-                self.is_connected = True
-                self.status_bar.showMessage("Connected to devices")
-                self.show_calibration_view()
-            else:
-                QMessageBox.warning(
-                    self, 
-                    "Connection Error", 
-                    "Could not connect to Arduino device. Please check connections and try again."
-                )
-        except Exception as e:
-            QMessageBox.critical(
-                self, 
-                "Error", 
-                f"An error occurred while connecting devices: {str(e)}"
-            )
+        #     if success:
+        #         self.is_connected = True
+        #         self.status_bar.showMessage("Connected to devices")
+        #         self.show_calibration_view()
+        #     else:
+        #         QMessageBox.warning(
+        #             self, 
+        #             "Connection Error", 
+        #             "Could not connect to Arduino device. Please check connections and try again."
+        #         )
+        # except Exception as e:
+        #     QMessageBox.critical(
+        #         self, 
+        #         "Error", 
+        #         f"An error occurred while connecting devices: {str(e)}"
+        #     )
+        pass
     
     def start_test(self):
         """Start the vision test"""
