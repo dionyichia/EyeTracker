@@ -11,8 +11,8 @@ from PyQt6.QtGui import QIcon, QAction, QKeySequence
 from gui.calibration_view import CalibrationView
 from gui.test_view import TestView
 from gui.results_view import ResultsView
-# from core.pupil_fitter import EyeTracker
-# from core.tracker import ArduinoTracker
+from core.pupil_tracker import EyeTracker
+from core.arduino_tracker import ArduinoTracker
 
 
 class MainWindow(QMainWindow):
@@ -152,32 +152,83 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.results_view)
     
     def connect_devices(self):
-        # """Connect to Arduino and camera"""
-        # try:
-        #     # Initialize eye tracker
-        #     self.eye_tracker = EyeTracker()
+        """Connect to Arduino and camera"""
+        try:            
+            # Initialize Arduino tracker with port selection callback
+            self.arduino_tracker = ArduinoTracker(
+                auto_connect=True,
+                baud_rate=self.config['arduino']['baud_rate'],
+                on_detect_callback=self.select_arduino_port,
+                port_identifiers=self.config['arduino']['port_identifiers']
+            )
             
-        #     # Initialize Arduino tracker
-        #     self.arduino_tracker = ArduinoTracker()
-        #     success = self.arduino_tracker.connect()
+            # Initialize eye tracker
+            self.eye_tracker = EyeTracker(arduino_tracker=self.arduino_tracker)
             
-        #     if success:
-        #         self.is_connected = True
-        #         self.status_bar.showMessage("Connected to devices")
-        #         self.show_calibration_view()
-        #     else:
-        #         QMessageBox.warning(
-        #             self, 
-        #             "Connection Error", 
-        #             "Could not connect to Arduino device. Please check connections and try again."
-        #         )
-        # except Exception as e:
-        #     QMessageBox.critical(
-        #         self, 
-        #         "Error", 
-        #         f"An error occurred while connecting devices: {str(e)}"
-        #     )
-        pass
+            if self.arduino_tracker.is_connected():
+                self.is_connected = True
+                self.status_bar.showMessage("Connected to devices")
+                self.show_calibration_view()
+            # else:
+            #     # Arduino connection failed or was cancelled
+            #     QMessageBox.warning(
+            #         self, 
+            #         "Connection Error", 
+            #         "Could not connect to Arduino device. Please check connections and try again."
+            #     )
+            self.show_calibration_view()
+                
+        except Exception as e:
+            QMessageBox.critical(
+                self, 
+                "Error", 
+                f"An error occurred while connecting devices: {str(e)}"
+            )
+    
+    def select_arduino_port(self, ports):
+        """Show dialog to let user select the correct Arduino port
+        
+        Args:
+            ports: List of available ports
+            
+        Returns:
+            str: Selected port or None if canceled
+        """
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Arduino Port")
+        dialog.setMinimumWidth(400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Add helpful message
+        message = QLabel("Multiple Arduino devices detected. Please select the correct port:")
+        layout.addWidget(message)
+        
+        # Create list widget for port selection
+        port_list = QListWidget()
+        for port_info in ports:
+            item = QListWidgetItem(f"{port_info['port']} - {port_info['description']}")
+            item.setData(Qt.ItemDataRole.UserRole, port_info['port'])
+            port_list.addWidget(item)
+        
+        layout.addWidget(port_list)
+        
+        # Add buttons
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        
+        # Show dialog and process result
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_items = port_list.selectedItems()
+            if selected_items:
+                return selected_items[0].data(Qt.ItemDataRole.UserRole)
+        
+        return None  # User canceled or no selection
+
     
     def start_test(self):
         """Start the vision test"""

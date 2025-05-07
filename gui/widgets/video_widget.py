@@ -4,7 +4,7 @@ Video widget for displaying camera feed in the EyeTracker application
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QImage, QPixmap
-
+import cv2
 
 class VideoWidget(QWidget):
     """Widget for displaying video feed from camera"""
@@ -34,39 +34,19 @@ class VideoWidget(QWidget):
             return
         
         # Convert OpenCV BGR format to RGB
-        frame_rgb = frame
-        if len(frame.shape) == 3:  # Color image (has 3 dimensions)
-            if frame.shape[2] == 3:  # 3 channels
-                # Convert BGR to RGB
-                frame_rgb = frame[..., ::-1].copy()
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        height, width = frame_rgb.shape[:2]
-        bytes_per_line = 3 * width
+        height, width, channels = rgb_frame.shape
+        bytes_per_line = channels * width
         
         # Create QImage from the frame
-        q_image = QImage(
-            frame_rgb.data,
-            width,
-            height,
-            bytes_per_line,
-            QImage.Format.Format_RGB888
-        )
+        qt_image = QImage(rgb_frame.data, width, height, bytes_per_line, QImage.Format.Format_RGB888)
         
-        # Scale the image to fit the widget while maintaining aspect ratio
-        pixmap = QPixmap.fromImage(q_image)
+        # Convert to QPixmap and set to label
+        pixmap = QPixmap.fromImage(qt_image)
         
-        # Get the size of the label
-        label_size = self.video_label.size()
-        
-        # Scale the pixmap to fit the label while preserving aspect ratio
-        scaled_pixmap = pixmap.scaled(
-            label_size, 
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        
-        # Set the pixmap to the label
-        self.video_label.setPixmap(scaled_pixmap)
+        # Scale pixmap to fit widget while maintaining aspect ratio
+        self.video_label.setPixmap(pixmap.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio))  
     
     def sizeHint(self):
         """Return a suitable size for the widget"""

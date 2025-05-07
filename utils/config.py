@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
     # Video settings
     "video": {
         "input_method": 2,  # 1 for video file, 2 for webcam
-        "video_path": "./eye_test.mp4",
+        "video_path": "./assets/eye_test.mp4",
         "zoom_factor": 1,
         "zoom_center": None,  # None means use the center of the frame
     },
@@ -25,8 +25,9 @@ DEFAULT_CONFIG = {
     # Arduino settings
     "arduino": {
         "enabled": False,
-        "port": "/dev/cu.usbserial-120",  # Default port, will be platform dependent
+        "port": "/dev/cu.usbserial-120",  # Default port, only for platform dev, will be removed
         "baud_rate": 115200,
+        "port_identifiers": ['arduino', 'usb', 'serial', 'uno', 'r4', 'wifi']
     },
     
     # Test settings
@@ -108,26 +109,6 @@ def save_config(config):
             json.dump(config, f, indent=4)
     except Exception as e:
         logging.error(f"Error saving config: {e}")
-
-
-def detect_arduino_ports():
-    """Detect available Arduino serial ports
-    
-    Returns:
-        list: List of potential Arduino serial ports
-    """
-    import serial.tools.list_ports
-    
-    ports = []
-    for port in serial.tools.list_ports.comports():
-        # Look for typical Arduino port names
-        if any(identifier in port.description.lower() for identifier in ['arduino', 'usb', 'serial']):
-            ports.append({
-                'port': port.device,
-                'description': port.description
-            })
-    
-    return ports
 
 
 def get_default_video_path():

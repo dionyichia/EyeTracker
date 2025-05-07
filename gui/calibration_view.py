@@ -141,6 +141,8 @@ class CalibrationView(QWidget):
             frame = self.parent.eye_tracker.get_processed_frame()
             if frame is not None:
                 self.video_widget.update_frame(frame)
+            else:
+                print("No frame detected")
     
     def showEvent(self, event):
         """Called when the widget is shown"""

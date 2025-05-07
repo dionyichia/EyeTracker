@@ -7,12 +7,37 @@ import os
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 import time
-from tracker import ArduinoTracker
+from core.arduino_tracker import ArduinoTracker
 
-class Eyetracker():
+CAMERA_FEED = 0
+TEST_VIDEO = 1
 
-    def __init__(self):
-        self.tracker = ArduinoTracker()
+class EyeTracker():
+    """Class for tracking eye pupil position using OpenCV"""
+    
+    def __init__(self, arduino_tracker=None):
+        """Initialize the eye tracker"""
+        self.tracker = arduino_tracker
+        self.cap = None
+
+        # Video input path 
+        self.vid_input = CAMERA_FEED
+        
+        # Configuration parameters
+        self.threshold_value = 15  # Default threshold value
+        self.zoom_factor = 1
+        self.lockpos_threshold = 48
+        self.threshold_switch_confidence_margin = 2
+        
+        # State tracking
+        self.is_position_locked = False
+        self.locked_position = None
+        self.prev_threshold_index = 0
+        self.prev_command = 'L'
+        self.debug_mode_on = False
+        
+        # Initialize camera
+        self._initialize_camera()
 
     # Crop the image to maintain a specific aspect ratio (width:height) before resizing. 
     def crop_to_aspect_ratio(self, image, width=640, height=480):
@@ -447,33 +472,59 @@ class Eyetracker():
 
 
     # Finds the pupil in an individual frame and returns the center point
-    def process_frame(self, frame):
-
+    def _process_single_frame(self, frame):
+        """Process a single frame with all your existing algorithms"""
         # Crop and resize frame
         frame = self.crop_to_aspect_ratio(frame)
-
-        #find the darkest point
+        
+        # Apply zoom effect if needed
+        if self.zoom_factor > 1:
+            frame = self.zoom_frame(frame, self.zoom_factor)
+        
+        # Find the darkest point (pupil center)
         darkest_point = self.get_darkest_area(frame)
-
-        # Convert to grayscale to handle pixel value operations
+        
+        # Convert to grayscale
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         darkest_pixel_value = gray_frame[darkest_point[1], darkest_point[0]]
         
-        # apply thresholding operations at different levels
-        # at least one should give us a good ellipse segment
-        thresholded_image_strict = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 5)#lite
+        # Apply thresholding at different levels (from your original code)
+        thresholded_image_strict = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 5)
         thresholded_image_strict = self.mask_outside_square(thresholded_image_strict, darkest_point, 250)
-
-        thresholded_image_medium = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 15)#medium
+        
+        thresholded_image_medium = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 15)
         thresholded_image_medium = self.mask_outside_square(thresholded_image_medium, darkest_point, 250)
         
-        thresholded_image_relaxed = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 25)#heavy
+        thresholded_image_relaxed = self.apply_binary_threshold(gray_frame, darkest_pixel_value, 25)
         thresholded_image_relaxed = self.mask_outside_square(thresholded_image_relaxed, darkest_point, 250)
         
-        #take the three images thresholded at different levels and process them
-        final_rotated_rect, final_contours = self.process_frames(thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame, darkest_point, -1, False, False, False, 5)
+        # Check if we have a locked position to track
+        track_darkest_point = self.locked_position if self.is_position_locked else -1
         
-        return final_rotated_rect, final_contours
+        # Process frames with your existing method
+        pupil_rotated_rect, final_contours, threshold_index, self.prev_command = self.process_frames(
+            self.prev_threshold_index, 
+            self.threshold_switch_confidence_margin,
+            thresholded_image_strict, 
+            thresholded_image_medium, 
+            thresholded_image_relaxed,
+            frame, 
+            gray_frame, 
+            darkest_point, 
+            track_darkest_point,
+            self.debug_mode_on, 
+            True,  # draw_on_frame
+            self.is_position_locked, 
+            self.lockpos_threshold, 
+            self.tracker.arduino if self.tracker and hasattr(self.tracker, 'arduino') else None,
+            self.prev_command
+        )
+        
+        # Update threshold index for next frame
+        self.prev_threshold_index = threshold_index
+        
+        # The frame now has the visualizations drawn on it by process_frames
+        return frame
 
     def process_video(self, video_path, input_method, zoom_factor=5, zoom_center=None, lockpos_threshold=5, arduino_port=None, threshold_swtich_confidence_margin=1):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4 format
@@ -575,6 +626,40 @@ class Eyetracker():
         out.release()
         cv2.destroyAllWindows()
 
+    def _initialize_camera(self):
+        """Initialize the webcam"""
+        try:
+            if self.vid_input:
+                self.cap = cv2.VideoCapture(0)  # Use default camera // NOT FIXED need to think of some realtive path maybe idk
+            else:
+                self.cap = cv2.VideoCapture(0)  # Use default camera
+
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 0)
+            
+            if not self.cap.isOpened():
+                print("Error: Could not open camera.")
+                return False
+            
+            return True
+        except Exception as e:
+            print(f"Camera initialization error: {str(e)}")
+            return False
+        
+    def get_processed_frame(self):
+        """Get current frame with processing applied - called by GUI timer"""
+        if not self.cap or not self.cap.isOpened():
+            return None
+        
+        ret, frame = self.cap.read()
+        if not ret:
+            return None
+        
+        # Apply all your processing steps
+        processed_frame = self._process_single_frame(frame)
+        return processed_frame
+
     def zoom_frame(self, frame, zoom_factor, center=None):
         """
         Zooms into a specific area of the frame based on the zoom factor.
@@ -646,8 +731,64 @@ class Eyetracker():
             return frame, command
         
         return frame, command
-
     
+    def set_threshold(self, value):
+        """Set the threshold value based on slider in GUI"""
+        self.threshold_value = value
+    
+    def lock_position(self):
+        """Lock the current eye position as reference point"""
+        if not self.cap or not self.cap.isOpened():
+            return
+        
+        ret, frame = self.cap.read()
+        if not ret:
+            return
+        
+        # Find darkest point (pupil center)
+        frame = self.crop_to_aspect_ratio(frame)
+        if self.zoom_factor > 1:
+            frame = self.zoom_frame(frame, self.zoom_factor)
+            
+        self.locked_position = self.get_darkest_area(frame)
+        self.is_position_locked = True
+    
+    def is_eye_in_position(self):
+        """Check if eye is in the calibrated position
+        
+        Returns:
+            bool: True if eye is in position, False otherwise
+        """
+        if not self.is_position_locked or self.locked_position is None:
+            return False
+        
+        if not self.cap or not self.cap.isOpened():
+            return False
+        
+        ret, frame = self.cap.read()
+        if not ret:
+            return False
+        
+        # Process frame to find current eye position
+        frame = self.crop_to_aspect_ratio(frame)
+        if self.zoom_factor > 1:
+            frame = self.zoom_frame(frame, self.zoom_factor)
+            
+        current_position = self.get_darkest_area(frame)
+        
+        # Calculate distance between locked and current position
+        dx = self.locked_position[0] - current_position[0]
+        dy = self.locked_position[1] - current_position[1]
+        distance = (dx*dx + dy*dy)**0.5
+        
+        # Check if within threshold
+        return distance < self.lockpos_threshold
+    
+    def release(self):
+        """Release camera resources"""
+        if self.cap:
+            self.cap.release()
+
     #Prompts the user to select a video file if the hardcoded path is not found
     #This is just for my debugging convenience :)
     def select_video(self):
@@ -656,22 +797,6 @@ class Eyetracker():
 
         video_path = './assets/eye_test.mp4'
         abs_path = os.path.abspath(video_path)    # Get absolute path
-        print(abs_path)
-
-        connect_to_arduino = False
-        arduino_port = '/dev/cu.usbserial-120' #'/dev/cu.usbserial-130'
-        baud_rate = 115200
-        arduino_deets = [arduino_port, baud_rate]
-        
-        if connect_to_arduino:
-            # Connect to Arduino
-            time.sleep(1.5)
-            arduino = self.tracker.connect_to_arduino(arduino_port,baud_rate)
-            if arduino is None:
-                print("Failed to connect to Arduino.")
-                return
-        else:
-            arduino = None
 
         if not os.path.exists(abs_path):
             print("No file found at hardcoded path. Please select a video file.")
@@ -679,6 +804,19 @@ class Eyetracker():
             if not video_path:
                 print("No file selected. Exiting.")
                 return
+
+        connect_to_arduino = False
+        
+        if connect_to_arduino:
+            # Connect to Arduino
+            time.sleep(1.5)
+            if self.tracker.arduino is None:
+                print("Failed to connect to Arduino, instance not connected")
+                return
+            
+            arduino = self.tracker.arduino
+        else:
+            arduino = None
                 
         # first parameter is for path of video
         # second parameter is 1 for video 2 for webcam
@@ -691,7 +829,23 @@ class Eyetracker():
         # process_video(abs_path, input_method=2, zoom_factor=8, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
         
 if __name__ == "__main__":
-    eye = Eyetracker()
+    tracker = ArduinoTracker()
+
+    ports = tracker.detect_arduino_ports()
+    if not ports:
+        print(f"No ports available for connection") 
+        # Display some error message showing cant find port 
+    elif len(ports) > 1:
+        print(f"Ports for connections")
+        for prt in ports:
+            print(f"Port: {prt}") 
+        
+        # FUNCTION TO ALLOW USER TO SELECT PORT, but for now just port[0]
+        selected_port = ports[0]
+    else:
+        selected_port = ports[0]
+        
+    eye = Eyetracker(arduino_tracker=tracker)
     eye.select_video()
 
 

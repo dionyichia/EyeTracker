@@ -2,34 +2,123 @@ import time
 import sys
 import serial
 
-class ArduinoTracker():
+class ArduinoTracker:
+    """Handles connection and communication with Arduino hardware."""
+    
+    def __init__(self, auto_connect=True, baud_rate=115200, on_detect_callback=None, port_identifiers=['arduino', 'uno']):
+        """Initialize the Arduino tracker.
+        
+        Args:
+            auto_connect: If True, try to auto-connect to Arduino
+            baud_rate: Baud rate for serial communication
+            on_detect_callback: Callback function called when multiple ports are detected
+                                Function signature: callback(ports) -> selected_port
+        """
+        self.arduino = None
+        self.baud_rate = baud_rate
+        self.port_identifiers = port_identifiers
+
+        
+        # If auto_connect is enabled, try to connect automatically
+        if auto_connect:
+            self.try_connect(on_detect_callback)
+    
+    def try_connect(self, on_detect_callback=None):
+        """Try to connect to Arduino, handling port detection and selection.
+        
+        Args:
+            on_detect_callback: Callback function for port selection
+            
+        Returns:
+            tuple: (success, message)
+        """
+        ports = self.detect_arduino_ports()
+
+        print("ports ", ports)
+        
+        if not ports:
+            return False, "No Arduino devices detected"
+        
+        if len(ports) == 1:
+            # Only one port found, connect automatically
+            port = ports[0]['port']
+            print("here 0")
+            success = self.connect_to_arduino(port, self.baud_rate)
+            print("here 1 ", success)
+            
+            if success:
+                return True, f"Connected to Arduino at {port}"
+            else:
+                return False, f"Failed to connect to Arduino at {port}"
+        else:
+            # Multiple ports found, let user select
+            if on_detect_callback:
+                selected_port = on_detect_callback(ports)
+                if selected_port:
+                    success = self.connect_to_arduino(selected_port, self.baud_rate)
+                    if success:
+                        return True, f"Connected to Arduino at {selected_port}"
+                    else:
+                        return False, f"Failed to connect to Arduino at {selected_port}"
+                else:
+                    return False, "No port selected"
+            else:
+                return False, "Multiple Arduino devices detected, but no selection callback provided"
+
+    # Find availiable ports
+    def detect_arduino_ports(self):
+        """Detect available Arduino serial ports.
+        
+        Returns:
+            list: List of potential Arduino serial ports
+        """
+        import serial.tools.list_ports
+        
+        arduino_ports = []
+        
+        port_info_list = list(serial.tools.list_ports.comports())
+        print("port_info_list:", port_info_list)
+
+        for port_info in port_info_list:
+            port_device = port_info.device  # Example: '/dev/cu.usbserial-130'
+            port_description = port_info.description.lower()  # Example: 'usb serial device'
+            print("port_description :",port_description)
+            
+            if any(identifier in port_description for identifier in self.port_identifiers):
+                arduino_ports.append({
+                    'port': port_device,
+                    'description': port_info.description
+                })
+        
+        return arduino_ports
+
 
     # Connect to Arduino
     def connect_to_arduino(self, port, baud_rate):
         try:
-            arduino = serial.Serial(port, baud_rate)
-            return arduino
+            self.arduino = serial.Serial(port, baud_rate)
+            return self.arduino
         except serial.SerialException as e:
             print(f"Unable to connect to port: {e}")
             sys.exit(1)
+
+    def is_connected(self):
+        """Check if Arduino is connected.
         
-    def read_button_state(self):
-        # Read data from Arduino
-        button_state = arduino.readline().decode().strip()
-
-        # Process button state
-        if button_state == 'ON':
-            print("Button is pressed")
-
-            return True
-        elif button_state == '0FF':
-            print("Button is not pressed")
-            return False
+        Returns:
+            bool: True if connected, False otherwise
+        """
+        return self.arduino is not None and self.arduino.is_open
+    
+    def disconnect(self):
+        """Disconnect from Arduino."""
+        if self.arduino and self.arduino.is_open:
+            self.arduino.close()
+            self.arduino = None
 
     def readtime(self, cur_time):
         click_time = time.time() - cur_time   
         return click_time
-
 
     def check_connection(self, arduino):
         try:
