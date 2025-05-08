@@ -1,27 +1,56 @@
 import time
 import sys
 import serial
+import serial.tools.list_ports
 
 class ArduinoTracker:
     """Handles connection and communication with Arduino hardware."""
     
-    def __init__(self, auto_connect=True, baud_rate=115200, on_detect_callback=None, port_identifiers=['arduino', 'uno']):
+    # Command bytes for efficient serial communication (single-byte)
+    CMD_START_TEST = b'\x01'      # Start test (0x01)
+    CMD_END_TEST = b'\x02'        # End test (0x02)
+    CMD_BUZZER_HIGH = b'\x03'     # High signal (LED ON) (0x03)
+    CMD_BUZZER_LOW = b'\x04'      # Low signal (LED OFF) (0x04)
+    CMD_PING = b'\x05'            # Ping signal to check connection (0x05)
+    CMD_WITHIN_THRESHOLD = b'\x06'  # Within threshold signal (0x06)
+    CMD_OUT_OF_THRESHOLD = b'\x07'  # Out of threshold signal (0x07)
+    CMD_CHECK_TEST_STATUS = b'\x08'  # Check test status: Ready, Running, Ended (0x08)
+    
+    # Response codes from Arduino
+    RESP_ACK = 'O'           # Command acknowledged
+    RESP_TEST_START = "Test starting..."
+    RESP_TEST_END = "TEST_END"
+    RESP_SYSTEM_ONLINE = "System Online"
+    RESP_SYSTEM_READY = "System ready"
+    RESP_SYSTEM_READY_TEST_ENDED = "System ready: Test finished"
+    RESP_SYSTEM_NOT_READY = "Not ready: Test running"
+    
+    def __init__(self, auto_connect=True, baud_rate=115200, timeout=2, on_detect_callback=None, port_identifiers=None):
         """Initialize the Arduino tracker.
         
         Args:
             auto_connect: If True, try to auto-connect to Arduino
             baud_rate: Baud rate for serial communication
+            timeout: Serial connection timeout in seconds
             on_detect_callback: Callback function called when multiple ports are detected
                                 Function signature: callback(ports) -> selected_port
+            port_identifiers: List of strings to identify Arduino ports
         """
         self.arduino = None
         self.baud_rate = baud_rate
-        self.port_identifiers = port_identifiers
-
+        self.timeout = timeout
+        self.port_identifiers = port_identifiers or ['arduino', 'uno', 'usbserial']
+        self.is_test_running = False
+        self.test_results = None
+        self.prev_command = None
         
         # If auto_connect is enabled, try to connect automatically
         if auto_connect:
-            self.try_connect(on_detect_callback)
+            success, message = self.try_connect(on_detect_callback)
+            if success:
+                print(f"Auto-connected: {message}")
+            else:
+                print(f"Auto-connect failed: {message}")
     
     def try_connect(self, on_detect_callback=None):
         """Try to connect to Arduino, handling port detection and selection.
@@ -33,8 +62,6 @@ class ArduinoTracker:
             tuple: (success, message)
         """
         ports = self.detect_arduino_ports()
-
-        print("ports ", ports)
         
         if not ports:
             return False, "No Arduino devices detected"
@@ -42,9 +69,7 @@ class ArduinoTracker:
         if len(ports) == 1:
             # Only one port found, connect automatically
             port = ports[0]['port']
-            print("here 0")
-            success = self.connect_to_arduino(port, self.baud_rate)
-            print("here 1 ", success)
+            success = self.connect_to_port(port)
             
             if success:
                 return True, f"Connected to Arduino at {port}"
@@ -55,7 +80,7 @@ class ArduinoTracker:
             if on_detect_callback:
                 selected_port = on_detect_callback(ports)
                 if selected_port:
-                    success = self.connect_to_arduino(selected_port, self.baud_rate)
+                    success = self.connect_to_port(selected_port)
                     if success:
                         return True, f"Connected to Arduino at {selected_port}"
                     else:
@@ -63,27 +88,34 @@ class ArduinoTracker:
                 else:
                     return False, "No port selected"
             else:
-                return False, "Multiple Arduino devices detected, but no selection callback provided"
+                # Default to first port if no callback
+                port = ports[0]['port']
+                success = self.connect_to_port(port)
+                
+                if success:
+                    return True, f"Connected to Arduino at {port} (default selection)"
+                else:
+                    return False, f"Failed to connect to Arduino at {port} (default selection)"
 
-    # Find availiable ports
     def detect_arduino_ports(self):
         """Detect available Arduino serial ports.
         
         Returns:
             list: List of potential Arduino serial ports
         """
-        import serial.tools.list_ports
-        
         arduino_ports = []
         
         port_info_list = list(serial.tools.list_ports.comports())
-        print("port_info_list:", port_info_list)
+        print(f"Available ports: {len(port_info_list)}")
 
         for port_info in port_info_list:
-            port_device = port_info.device  # Example: '/dev/cu.usbserial-130'
-            port_description = port_info.description.lower()  # Example: 'usb serial device'
-            print("port_description :",port_description)
+            port_device = port_info.device
+            port_description = port_info.description.lower()
             
+            # Debug output
+            print(f"Port: {port_device}, Description: {port_description}")
+            
+            # Check if any identifier matches the port description
             if any(identifier in port_description for identifier in self.port_identifiers):
                 arduino_ports.append({
                     'port': port_device,
@@ -92,15 +124,65 @@ class ArduinoTracker:
         
         return arduino_ports
 
-
-    # Connect to Arduino
-    def connect_to_arduino(self, port, baud_rate):
+    def connect_to_port(self, port):
+        """Connect to Arduino at specified port.
+        
+        Args:
+            port: Serial port to connect to
+            
+        Returns:
+            bool: True if connection successful, False otherwise
+        """
         try:
-            self.arduino = serial.Serial(port, baud_rate)
-            return self.arduino
+            self.arduino = serial.Serial(port, self.baud_rate, timeout=self.timeout)
+            time.sleep(2)  # Allow time for Arduino reset
+            
+            # Test connection by pinging
+            if self.ping():
+                print("Connection verified with ping")
+                return True
+            else:
+                print("Failed to verify connection with ping")
+                self.disconnect()
+                return False
+                
         except serial.SerialException as e:
-            print(f"Unable to connect to port: {e}")
-            sys.exit(1)
+            print(f"Connection error: {e}")
+            self.arduino = None
+            return False
+
+    def ping(self):
+        """Ping Arduino to verify connection.
+        
+        Returns:
+            bool: True if ping successful, False otherwise
+        """
+        if not self.is_connected():
+            return False
+            
+        try:
+            # Clear buffers
+            self.arduino.reset_input_buffer()
+            self.arduino.reset_output_buffer()
+            
+            # Send ping command
+            self.arduino.write(self.CMD_PING)
+            self.arduino.flush()
+            
+            # Wait for response
+            start_time = time.time()
+            while time.time() - start_time < 2:
+                if self.arduino.in_waiting > 0:
+                    response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                    if self.RESP_SYSTEM_ONLINE in response:
+                        return True
+                time.sleep(0.1)
+                
+            return False
+            
+        except serial.SerialException as e:
+            print(f"Ping error: {e}")
+            return False
 
     def is_connected(self):
         """Check if Arduino is connected.
@@ -112,224 +194,374 @@ class ArduinoTracker:
     
     def disconnect(self):
         """Disconnect from Arduino."""
-        if self.arduino and self.arduino.is_open:
-            self.arduino.close()
-            self.arduino = None
-
-    def readtime(self, cur_time):
-        click_time = time.time() - cur_time   
-        return click_time
-
-    def check_connection(self, arduino):
         try:
-            time.sleep(2)
-            arduino = self.connect_to_arduino('/dev/cu.usbserial-A50285BI', 115200)
-
-            arduino.write(("PING\n").encode('utf-8'))
-            time.sleep(1)  # Wait a moment for Arduino to process
-
-            ##remve line 39 .inwaiting check what outputs in serail ////////////////////////////////////
-
-            if arduino.in_waiting > 0:
-                response = arduino.readline().decode().strip()
-                if response == "PONG":
-                    print("Arduino is connected and responding.")
-                    return True
-                else:
-                    print(f"Unexpected response from Arduino: {response}catch\n")
-                    return False
-            else:
-                print("No response from Arduino.")
-                return False
-
+            if self.arduino and self.arduino.is_open:
+                self.arduino.close()
         except serial.SerialException as e:
-            print(f"Error while checking connection: {e}")
-            return False
+            print(f"Error during disconnect: {e}")
+        finally:
+            self.arduino = None
+            self.is_test_running = False
 
-    def buzzer(self, arduino, command, prev_command):
-        # Check if the Arduino is properly connected before sending commands
-        #if not check_connection(port, baudrate):
-            #print("Failed to communicate with Arduino. Check the connection.")
-            #return
+    def send_command(self, command, prev_command=None):
+        """Send command to Arduino and verify acknowledgment.
         
-        #time.sleep(1)
-        #arduino = connect_to_arduino(port, baudrate)
-
-        # Send the command if connection check passes
-
-        print(f"Sending command: {command}")
-        if command in ['H', 'L']:
-            if command != prev_command:
-                try:
-                    if command == 'H':
-                        arduino.write(('H').encode('utf-8'))  # Send the command to Arduino
-                    else:
-                        arduino.write(('L').encode('utf-8'))  # Send the command to Arduino 
-                    arduino.flush() 
-
-                    # Wait for acknowledgment
-                    start_time = time.time()
-                    while time.time() - start_time < 1:  # 1 second timeout
-                        if arduino.in_waiting > 0:
-                            response = arduino.readline().decode('utf-8').strip()
-                            if response == 'O':
-                                print(f"Command '{command}' acknowledged by Arduino.")
-                                return 1
-                            else:
-                                print(f"Response: '{response}' by Arduino.")
-                                return 2
-                        
-                    print(f"No acknowledgment received for command '{command}'.")
-                    return 0
-                except serial.SerialException as e:
-                    print(f"Error sending command: {e}")
-                    return 0
-            else:
-                return 1
-        else:
-            print("Invalid input. Please enter HIGH or LOW.")
+        Args:
+            command: Command to send
+            prev_command: Previous command sent (to avoid repeating same command)
+            
+        Returns:
+            int: 1 if successful, 0 if failed, 2 if special response received
+        """
+        if not self.is_connected():
+            print("Cannot send command: Not connected to Arduino")
+            return 0
+            
+        # Skip sending if command hasn't changed (for efficiency)
+        if prev_command is not None and command == prev_command:
+            return 1
+            
+        # Convert command to bytes if it's a string
+        if isinstance(command, str):
+            command = command.encode('utf-8')
+            
+        try:
+            self.arduino.write(command)
+            self.arduino.flush()
+            self.prev_command = command
+            return 1
+        except serial.SerialException as e:
+            print(f"Error sending command: {e}")
+            return 0
+        
+    
+    def check_ack(self):
+        """Non-blocking check for Arduino acknowledgment."""
+        if not self.is_connected():
+            return 0
+            
+        try:
+            if self.arduino.in_waiting > 0:
+                response = self.arduino.read(1)
+                if response == b'O':
+                    return 1
+                else:
+                    return 2
+            return 0
+        except serial.SerialException as e:
+            print(f"Error checking acknowledgment: {e}")
             return 0
 
-if __name__ == "__main__":
-    # Establish a single connection to Arduino
-    arduino_port = '/dev/cu.usbserial-130'  # Change this to the correct port
-    baud_rate = 115200
-    tracker = ArduinoTracker()
-
-    time.sleep(2)
-    arduino = tracker.connect_to_arduino(arduino_port, baud_rate)
-    # Connect to Arduino
-    if arduino is None:
-        print("Failed to connect to Arduino.\n")
-
-    if not tracker.check_connection(arduino_port, baud_rate):
-        print("Arduino is not responding. Exiting.")
-
-    while True:
-        if (arduino.in_waiting > 0):
-            response = arduino.readline().decode('utf').strip('\n')
-            print(response)
-        else:
-            print("No msg from Arduino.")
-
-        command = input("Enter HIGH/LOW: ").strip().upper()
-        if command == "HIGH" or command == "LOW":
-            if command == "HIGH":
-                arduino.write(('H').encode('utf-8'))  # Send the command to Arduino
-            else:
-                arduino.write(('L').encode('utf-8'))  # Send the command to Arduino
-            print("Interfacing from main")
-        elif command == "EXIT":
-            break
-        else:
-            print("Invalid input. Please enter HIGH, LOW, or EXIT.")
-
-    arduino.close()
-
-    """
-
-    """
-    """
-    # Now continuously check the button state while waiting for the timing window
-    start_time = time.time()
-    print("Click the button between 1 and 3 seconds into the runtime.")
-
-    click_time = []
-    while True:
-        button_pressed = read_button_state()
-        if button_pressed:
-            click_time.append(readtime(start_time))
+    def start_test(self):
+        """Start the test sequence on Arduino.
         
-        if(readtime(start_time) >= 5):
-            break
+        Returns:
+            bool: True if command acknowledged, False otherwise
+        """
+        if not self.is_connected():
+            print("Cannot start test: Not connected to Arduino")
+            return False
+            
+        try:
+            # Ping to check test status and system state
+            status = self.get_test_status()
+            print("status ", status)
+            if self.RESP_SYSTEM_NOT_READY in status['test_status']:
+                self.stop_test()
+        
+            # Clear input buffer
+            self.arduino.reset_input_buffer()
+            
+            # Send start test command
+            self.arduino.write(self.CMD_START_TEST)
+            self.arduino.flush()
+            
+            # Wait for confirmation
+            start_time = time.time()
+            while time.time() - start_time < 2:
+                if self.arduino.in_waiting > 0:
+                    response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                    print(f"Start test response: {response}")
+                    if self.RESP_TEST_START in response:
+                        self.is_test_running = True
+                        self.test_results = None
+                        return True
+                else:
+                    print("no inwaiting ")
 
+                time.sleep(0.1)
+                
+            print("No response received for start test command")
+            return False
+            
+        except serial.SerialException as e:
+            print(f"Error starting test: {e}")
+            return False
+
+    def stop_test(self):
+        """Stop the current test.
+        
+        Returns:
+            bool: True if command acknowledged, False otherwise
+        """
+        if not self.is_connected():
+            print("Cannot stop test: Not connected")
+            return False
+            
+        try:
+            # Send end test command
+            self.arduino.write(self.CMD_END_TEST)
+            self.arduino.flush()
+            
+            # Wait for confirmation
+            start_time = time.time()
+            test_ended = False
+            
+            while time.time() - start_time < 3:
+                if self.arduino.in_waiting > 0:
+                    response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                    print(f"Stop test response: {response}")
+                    if self.RESP_TEST_END in response:
+                        test_ended = True
+                        break
+                time.sleep(0.1)
+            
+            # Mark test as not running
+            self.is_test_running = False
+            
+            return test_ended
+            
+        except serial.SerialException as e:
+            print(f"Error stopping test: {e}")
+            return False
+
+    def get_test_results(self, timeout=5):
+        """Get results from the completed test.
+        
+        Args:
+            timeout: Maximum time to wait for results in seconds
+            
+        Returns:
+            dict: Test results including reason, click_counter, and click_tracker
+                  or None if no results available
+        """
+        if not self.is_connected():
+            print("Cannot get test results: Not connected to Arduino")
+            return None
+            
+        # If we already have results, return them
+        if self.test_results:
+            return self.test_results
+            
+        results = {
+            'reason': None,
+            'click_counter': None,
+            'click_tracker': None
+        }
+        
+        end_marker_found = False
+        
+        # Wait for results up to timeout
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.arduino.in_waiting > 0:
+                line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                print(f"Results line: {line}")
+                
+                # Check for test end marker
+                if self.RESP_TEST_END in line:
+                    end_marker_found = True
+                    continue
+                    
+                # Parse result data
+                if end_marker_found:
+                    if line.startswith("Reason:"):
+                        results['reason'] = line[7:].strip()
+                    elif line.startswith("Click counter:"):
+                        try:
+                            results['click_counter'] = int(line[14:].strip())
+                        except ValueError:
+                            results['click_counter'] = -1
+                    elif line.startswith("Click tracker:"):
+                        results['click_tracker'] = line[14:].strip()
+                    elif self.RESP_SYSTEM_ONLINE in line:
+                        # End of results
+                        self.test_results = results
+                        return results
+                        
+            time.sleep(0.1)
+            
+        print(f"Timed out waiting for test results after {timeout} seconds")
+        return None
+
+    def read_available_data(self):
+        """Read and return any available data from Arduino.
+        
+        Returns:
+            list: List of lines received from Arduino, or empty list if none
+        """
+        if not self.is_connected():
+            return []
+            
+        lines = []
+        try:
+            while self.arduino.in_waiting > 0:
+                line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                if line:
+                    lines.append(line)
+        except serial.SerialException as e:
+            print(f"Error reading data: {e}")
+            
+        return lines
+
+    def check_connection(self):
+        """Check if Arduino is still responding.
+        
+        Returns:
+            bool: True if responding, False otherwise
+        """
+        return self.ping()
     
-    if 1 <= click_time[0] <= 3:
-        print("Passed, Result:", click_time)
-    else:
-        print("Fail, Result:", click_time)
+    def get_test_status(self):
+        """Check if test is still ongoing.
+        
+        Returns:
+            status: True if finished, False otherwise
+        """
+        if not self.is_connected():
+            return False
+            
+        try:
+            # Clear buffers
+            self.arduino.reset_input_buffer()
+            self.arduino.reset_output_buffer()
+            
+            # Send check test status command
+            self.arduino.write(self.CMD_CHECK_TEST_STATUS)
+            self.arduino.flush()
+            
+            # Wait for response
+            start_time = time.time()
+            while time.time() - start_time < 2:
+                if self.arduino.in_waiting > 0:
+                    response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                    if self.RESP_SYSTEM_READY in response:
+                        if self.RESP_SYSTEM_READY_TEST_ENDED in response:
+                            return {'test_status': self.RESP_SYSTEM_READY, 'description': self.RESP_SYSTEM_READY_TEST_ENDED}
+                        else:
+                            return {'test_status': self.RESP_SYSTEM_READY}
+                    else:
+                        return {'test_status': self.RESP_SYSTEM_NOT_READY}
+                    
+                time.sleep(0.1)
+                
+            return {'test_status': "No response"}
+            
+        except serial.SerialException as e:
+            print(f"Ping error: {e}")
+            return False
 
+
+def select_port_menu(ports):
+    """Display a menu for selecting a port.
+    
+    Args:
+        ports: List of port dictionaries with 'port' and 'description' keys
+        
+    Returns:
+        str: Selected port or None if cancelled
     """
+    if not ports:
+        print("No Arduino ports detected")
+        return None
+        
+    print("\nAvailable Arduino ports:")
+    for i, port_info in enumerate(ports):
+        print(f"{i+1}. {port_info['port']} - {port_info['description']}")
+    
+    try:
+        choice = int(input(f"Select port (1-{len(ports)}, or 0 to cancel): "))
+        if 1 <= choice <= len(ports):
+            return ports[choice-1]['port']
+        else:
+            return None
+    except ValueError:
+        print("Invalid input")
+        return None
 
 
-    """
-    Arduino code: Clicker Button to Video Timing
-    // declare pins
-    const int button_pin = 4;
-
-    // variable for button state
-    int button_state;
-
-    void setup() { // put your setup code here, to run once:
-      pinMode(button_pin,INPUT);  // set button pin as input
-      Serial.begin(9600);
-    }
-
-    void loop() { // put your main code here, to run repeatedly:
-      button_state = digitalRead(button_pin);  // read button state
-      if(button_state == HIGH){           // if button is pushed
-        Serial.println("ON");
-      }
-      else{                               // if button is not pushed
-        Serial.println("OFF");
-      }
-    }
-
-    """
-
-    """
-    Arduino Code: Button to 4 LEDs
-    // declare pins
-    const int button_pin = 7;
-    const int led1 = 3;
-    const int led2 = 4;
-    const int led3 = 5;
-    const int led4 = 6;
-
-    // variable for button state
-    int button_state;
-    int led1_state;
-    int led2_state;
-    int led3_state;
-    int led4_state;
-    int counter;
-
-    void setup() { // put your setup code here, to run once:
-      pinMode(button_pin,INPUT);  // set button pin as input
-      pinMode(led1, OUTPUT);
-      pinMode(led2, OUTPUT);
-      pinMode(led3, OUTPUT);
-      pinMode(led4, OUTPUT);
-        Serial.begin(9600);
-    }
-
-    void loop() { // put your main code here, to run repeatedly:
-      button_state = digitalRead(button_pin);  // read button state
-      if(button_state == HIGH){           // if button is pushed
-        Serial.println("ON");
-        digitalWrite(led1, HIGH);
-        delay(100);
-        digitalWrite(led1, LOW);
-        delay(100);
-        digitalWrite (led2, HIGH);
-        delay(100);
-        digitalWrite (led2, LOW);
-        delay(100);
-        digitalWrite (led3, HIGH);
-        delay(100);
-        digitalWrite (led3, LOW);
-        delay(100);
-        digitalWrite (led4, HIGH);
-        delay(100);
-        digitalWrite (led4, LOW);
-      }
-      else{                               // if button is not pushed
-        Serial.println("OFF");
-        digitalWrite (led1, LOW);    
-        digitalWrite (led2, LOW);
-        digitalWrite (led3, LOW);
-        digitalWrite (led4, LOW);
-      }
-    }
-
-    """
+if __name__ == "__main__":
+    # Create Arduino tracker with manual port selection
+    tracker = ArduinoTracker(auto_connect=False)
+    
+    # Try to connect with port selection menu
+    success, message = tracker.try_connect(select_port_menu)
+    
+    if not success:
+        print(f"Failed to connect: {message}")
+        sys.exit(1)
+        
+    print(message)
+    
+    # Basic interactive command menu
+    print("\nCommand Menu:")
+    print("S - Start test")
+    print("E - End test")
+    print("H - Send HIGH signal (LED ON)")
+    print("L - Send LOW signal (LED OFF)")
+    print("R - Read data")
+    print("0 - Send within threshold")
+    print("1 - Send out of threshold")
+    print("Q - Quit")
+    
+    prev_command = None
+    
+    while True:
+        command = input("\nEnter command: ").strip().upper()
+        
+        if command == 'Q':
+            break
+        elif command == 'S':
+            if tracker.start_test():
+                print("Test started successfully")
+            else:
+                print("Failed to start test")
+        elif command == 'E':
+            if tracker.stop_test():
+                results = tracker.get_test_results()
+                if results:
+                    print(f"Test results: {results}")
+                else:
+                    print("No test results available")
+            else:
+                print("Failed to stop test")
+        elif command == 'R':
+            lines = tracker.read_available_data()
+            if lines:
+                print(f"Received data: {lines}")
+            else:
+                print("No data available")
+        elif command in ['H', 'L', '0', '1']:
+            cmd_map = {
+                'H': tracker.CMD_BUZZER_HIGH,
+                'L': tracker.CMD_BUZZER_LOW,
+                '0': tracker.CMD_WITHIN_THRESHOLD,
+                '1': tracker.CMD_OUT_OF_THRESHOLD
+            }
+            
+            result = tracker.send_command(cmd_map[command], prev_command)
+            
+            if result == 1:
+                print(f"Command {command} sent and acknowledged")
+                prev_command = cmd_map[command]
+            elif result == 2:
+                print("Program ended by Arduino")
+                break
+            else:
+                print(f"Failed to send command {command}")
+        else:
+            print("Invalid command")
+    
+    # Clean up on exit
+    tracker.disconnect()
+    print("Disconnected from Arduino")

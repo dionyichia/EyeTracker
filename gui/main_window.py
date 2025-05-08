@@ -169,13 +169,13 @@ class MainWindow(QMainWindow):
                 self.is_connected = True
                 self.status_bar.showMessage("Connected to devices")
                 self.show_calibration_view()
-            # else:
-            #     # Arduino connection failed or was cancelled
-            #     QMessageBox.warning(
-            #         self, 
-            #         "Connection Error", 
-            #         "Could not connect to Arduino device. Please check connections and try again."
-            #     )
+            else:
+                # Arduino connection failed or was cancelled
+                QMessageBox.warning(
+                    self, 
+                    "Connection Error", 
+                    "Could not connect to Arduino device. Please check connections and try again."
+                )
             self.show_calibration_view()
                 
         except Exception as e:
@@ -241,7 +241,6 @@ class MainWindow(QMainWindow):
             return
         
         try:
-            self.arduino_tracker.start_test()
             self.is_test_running = True
             self.show_test_view()
             self.status_bar.showMessage("Test in progress")

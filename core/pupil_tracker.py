@@ -9,11 +9,16 @@ import matplotlib.pyplot as plt
 import time
 from core.arduino_tracker import ArduinoTracker
 
-CAMERA_FEED = 0
-TEST_VIDEO = 1
-
 class EyeTracker():
     """Class for tracking eye pupil position using OpenCV"""
+    
+    # Video input config params, for debugging and demonstration
+    CAMERA_FEED = 0
+    TEST_VIDEO = 1
+
+    # Command constants (single-byte for efficiency)
+    CMD_WITHIN_THRESHOLD = b'\x06'  # Within threshold signal (0x06)
+    CMD_OUT_OF_THRESHOLD = b'\x07'  # Out of threshold signal (0x07)
     
     def __init__(self, arduino_tracker=None):
         """Initialize the eye tracker"""
@@ -21,7 +26,7 @@ class EyeTracker():
         self.cap = None
 
         # Video input path 
-        self.vid_input = CAMERA_FEED
+        self.vid_input = self.CAMERA_FEED
         
         # Configuration parameters
         self.threshold_value = 15  # Default threshold value
@@ -328,8 +333,7 @@ class EyeTracker():
                     arduino, prev_command
                     ):
         """
-
-        
+        Process frames but don't show OpenCV windows
         """
         final_rotated_rect = ((0,0),(0,0),0)
 
@@ -367,8 +371,10 @@ class EyeTracker():
                 gray_copy = gray_frame.copy()
                 cv2.drawContours(gray_copies[i-1], reduced_contours, -1, (255), 1)
                 ellipse = cv2.fitEllipse(reduced_contours[0])
-                if debug_mode_on: #show contours 
-                    cv2.imshow(name_array[i-1] + " threshold", gray_copies[i-1])
+                
+                # Don't render debug windows
+                # if debug_mode_on:
+                #     cv2.imshow(name_array[i-1] + " threshold", gray_copies[i-1])
                     
                 #in total pixels, first element is pixel total, next is ratio
                 total_pixels = self.check_contour_pixels(reduced_contours[0], dilated_image.shape, debug_mode_on)                 
@@ -378,14 +384,14 @@ class EyeTracker():
                 
                 current = current_goodness[0]*total_pixels[0]*total_pixels[0]*total_pixels[1]
                 
-                #show intermediary images with text output
-                if debug_mode_on:
-                    cv2.putText(gray_copies[i-1], "%filled:     " + str(current_goodness[0])[:5] + " (percentage of filled contour pixels inside ellipse)", (10,30), font, .55, (255,255,255), 1) #%filled
-                    cv2.putText(gray_copies[i-1], "abs. pix:   " + str(total_pixels[0]) + " (total pixels under fit ellipse)", (10,50), font, .55, (255,255,255), 1    ) #abs pix
-                    cv2.putText(gray_copies[i-1], "pix ratio:  " + str(total_pixels[1]) + " (total pix under fit ellipse / contour border pix)", (10,70), font, .55, (255,255,255), 1    ) #abs pix
-                    cv2.putText(gray_copies[i-1], "final:     " + str(current) + " (filled*ratio)", (10,90), font, .55, (255,255,255), 1) #skewedness
-                    cv2.imshow(name_array[i-1] + " threshold", image_array[i-1])
-                    cv2.imshow(name_array[i-1], gray_copies[i-1])
+                # Don't render debug windows
+                # if debug_mode_on:
+                #     cv2.putText(gray_copies[i-1], "%filled:     " + str(current_goodness[0])[:5] + " (percentage of filled contour pixels inside ellipse)", (10,30), font, .55, (255,255,255), 1) #%filled
+                #     cv2.putText(gray_copies[i-1], "abs. pix:   " + str(total_pixels[0]) + " (total pixels under fit ellipse)", (10,50), font, .55, (255,255,255), 1    ) #abs pix
+                #     cv2.putText(gray_copies[i-1], "pix ratio:  " + str(total_pixels[1]) + " (total pix under fit ellipse / contour border pix)", (10,70), font, .55, (255,255,255), 1    ) #abs pix
+                #     cv2.putText(gray_copies[i-1], "final:     " + str(current) + " (filled*ratio)", (10,90), font, .55, (255,255,255), 1) #skewedness
+                #     cv2.imshow(name_array[i-1] + " threshold", image_array[i-1])
+                #     cv2.imshow(name_array[i-1], gray_copies[i-1])
             
                 goodness.append(current)
                 ellipse_reduced_contours.append(total_pixels[2])
@@ -418,14 +424,15 @@ class EyeTracker():
         final_contours = final_contours[prev_threshold_index]
         final_image = dilated_image
 
-        if debug_mode_on:
-            # Ensure ellipse_reduced_contours is a valid image
-            if isinstance(ellipse_reduced_contours, np.ndarray):
-                cv2.imshow("Reduced contours of best thresholded image", ellipse_reduced_contours)
-            else:
-                print("Error: ellipse_reduced_contours is not a valid image.")
-                print("type ellipse_reduced_contours", type(ellipse_reduced_contours))
-                print("ellipse_reduced_contours", ellipse_reduced_contours)
+        # Don't display OpenCV windows for debug
+        # if debug_mode_on:
+        #     # Ensure ellipse_reduced_contours is a valid image
+        #     if isinstance(ellipse_reduced_contours, np.ndarray):
+        #         cv2.imshow("Reduced contours of best thresholded image", ellipse_reduced_contours)
+        #     else:
+        #         print("Error: ellipse_reduced_contours is not a valid image.")
+        #         print("type ellipse_reduced_contours", type(ellipse_reduced_contours))
+        #         print("ellipse_reduced_contours", ellipse_reduced_contours)
 
         # If darkest point position hover around a particular location for more than 5 seconds, or if "L" is pressed then lockpos
         if lock_mode_on:
@@ -436,28 +443,29 @@ class EyeTracker():
                 else:
                     euclid_dist =  math.dist(track_darkest_point, darkest_point) 
                     print("mathing, euclid dist: ", euclid_dist)
-                    frame, prev_command = self.lockpos(frame, final_contours, euclid_dist, lockpos_threshold, arduino, prev_command)
+                    frame, prev_command = self.lockpos(frame, final_contours, euclid_dist, lockpos_threshold)
 
         test_frame = frame.copy()
         
         final_contours = [self.optimize_contours_by_angle(final_contours, gray_frame)]
         
         if final_contours and not isinstance(final_contours[0], list) and len(final_contours[0] > 5):
-            #cv2.drawContours(test_frame, final_contours, -1, (255, 255, 255), 1)
             ellipse = cv2.fitEllipse(final_contours[0])
             final_rotated_rect = ellipse
-            #cv2.circle(test_frame, darkest_point, 3, (255, 125, 125), -1)
             center_x, center_y = map(int, ellipse[0])
             cv2.circle(test_frame, (center_x, center_y), 3, (255, 255, 0), -1)
-            cv2.putText(test_frame, "SPACE = play/pause", (10,410), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #space
-            cv2.putText(test_frame, "Q      = quit", (10,430), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #quit
-            cv2.putText(test_frame, "D      = show debug", (10,450), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2) #debug
+            
+            # Add instructions as overlay text
+            cv2.putText(test_frame, "SPACE = play/pause", (10,410), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2)
+            cv2.putText(test_frame, "Q      = quit", (10,430), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2)
+            cv2.putText(test_frame, "D      = show debug", (10,450), cv2.FONT_HERSHEY_SIMPLEX, .55, (255,90,30), 2)
 
             if lock_mode_on == False:
                 cv2.ellipse(test_frame, ellipse, (255, 0, 0), 2)
 
-        if render_cv_window:
-            cv2.imshow('best_thresholded_image_contours_on_frame', test_frame)
+        # Don't display the OpenCV window
+        # if render_cv_window:
+        #     cv2.imshow('best_thresholded_image_contours_on_frame', test_frame)
         
         # Create an empty image to draw contours
         contour_img3 = np.zeros_like(image_array[i-1])
@@ -467,13 +475,15 @@ class EyeTracker():
             ellipse = cv2.fitEllipse(contour) # Fit ellipse
             cv2.ellipse(gray_frame, ellipse, (255,255,255), 2)  # Draw with white color and thickness of 2
 
-        #process_frames now returns a rotated rectangle for the ellipse for easy access
-        return final_rotated_rect, final_contours, prev_threshold_index, prev_command
-
+        # Return the test_frame instead which has all the visualizations
+        return test_frame, final_rotated_rect, final_contours, prev_threshold_index, prev_command
 
     # Finds the pupil in an individual frame and returns the center point
     def _process_single_frame(self, frame):
         """Process a single frame with all your existing algorithms"""
+        if frame is None:
+            return None
+            
         # Crop and resize frame
         frame = self.crop_to_aspect_ratio(frame)
         
@@ -483,6 +493,8 @@ class EyeTracker():
         
         # Find the darkest point (pupil center)
         darkest_point = self.get_darkest_area(frame)
+        if darkest_point is None:
+            return frame  # Return original frame if no darkest point found
         
         # Convert to grayscale
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -501,8 +513,8 @@ class EyeTracker():
         # Check if we have a locked position to track
         track_darkest_point = self.locked_position if self.is_position_locked else -1
         
-        # Process frames with your existing method
-        pupil_rotated_rect, final_contours, threshold_index, self.prev_command = self.process_frames(
+        # Process frames with your existing method - get the processed frame with visualizations
+        processed_frame, pupil_rotated_rect, final_contours, threshold_index, self.prev_command = self.process_frames(
             self.prev_threshold_index, 
             self.threshold_switch_confidence_margin,
             thresholded_image_strict, 
@@ -513,7 +525,7 @@ class EyeTracker():
             darkest_point, 
             track_darkest_point,
             self.debug_mode_on, 
-            True,  # draw_on_frame
+            False,  # Don't render OpenCV window
             self.is_position_locked, 
             self.lockpos_threshold, 
             self.tracker.arduino if self.tracker and hasattr(self.tracker, 'arduino') else None,
@@ -523,8 +535,21 @@ class EyeTracker():
         # Update threshold index for next frame
         self.prev_threshold_index = threshold_index
         
-        # The frame now has the visualizations drawn on it by process_frames
-        return frame
+        # Return the processed frame with visualizations
+        return processed_frame
+
+    def get_processed_frame(self):
+        """Get current frame with processing applied - called by GUI timer"""
+        if not self.cap or not self.cap.isOpened():
+            return None
+        
+        ret, frame = self.cap.read()
+        if not ret:
+            return None
+        
+        # Apply all processing steps and return the processed frame
+        processed_frame = self._process_single_frame(frame)
+        return processed_frame
 
     def process_video(self, video_path, input_method, zoom_factor=5, zoom_center=None, lockpos_threshold=5, arduino_port=None, threshold_swtich_confidence_margin=1):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4 format
@@ -646,19 +671,6 @@ class EyeTracker():
         except Exception as e:
             print(f"Camera initialization error: {str(e)}")
             return False
-        
-    def get_processed_frame(self):
-        """Get current frame with processing applied - called by GUI timer"""
-        if not self.cap or not self.cap.isOpened():
-            return None
-        
-        ret, frame = self.cap.read()
-        if not ret:
-            return None
-        
-        # Apply all your processing steps
-        processed_frame = self._process_single_frame(frame)
-        return processed_frame
 
     def zoom_frame(self, frame, zoom_factor, center=None):
         """
@@ -690,46 +702,65 @@ class EyeTracker():
         
         return zoomed_frame
 
-    ##Lockpos 
-    def lockpos(self, frame, final_contours, euclid_dist, lockpos_threshold, arduino_deets, prev_command):
-        command = 'H'
-
-        if final_contours != []:
-
-            if (euclid_dist > lockpos_threshold):
-                frame = self.fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
-                #self.tracker.check_connection(arduino_deets)
-                command = 'H'
-
-                if arduino_deets:
-                    if self.tracker.buzzer(arduino_deets, 'H', prev_command) == 1:
-                        print("HIGH command sent and acknowledged.")
-
-                    elif self.tracker.buzzer(arduino_deets, 'H', prev_command) == 2:
-                        print("Prog Ended.")
-                        return frame, command
-                    else:
-                        print("Failed to send HIGH command or no acknowledgment received.")
-                print("Out of thres")
-                ##cv2.imshow('Darkest image patch', frame)
-            else:
-                command = 'L'
-
-                frame = self.fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
-                print("whithin threshold")
-                if arduino_deets:
-                    if self.tracker.buzzer(arduino_deets, 'L', prev_command) == 1:
-                        print("LOW command sent and acknowledged.")
-                    elif self.tracker.buzzer(arduino_deets, 'L', prev_command) == 2:
-                        print("Prog Ended.")
-
-                    # Need to find a way to end the program, dicuss how to end the program
-                    return frame, command
-                else:
-                    print("Failed to send LOW command or no acknowledgment received.")
-
-            return frame, command
+    def lockpos(self, frame, final_contours, euclid_dist, lockpos_threshold):
+        """Process pupil position and send appropriate commands to Arduino
         
+        Args:
+            frame: Video frame to process
+            final_contours: Detected pupil contours
+            euclid_dist: Distance of pupil from reference point
+            lockpos_threshold: Maximum allowed distance
+            
+        Returns:
+            tuple: (processed_frame, command)
+        """
+        # Default command - out of threshold
+        command = self.CMD_OUT_OF_THRESHOLD
+        
+        # Only process if we have contours
+        if not final_contours:
+            return frame, command
+            
+        # Check if pupil is within allowed distance from reference point
+        if euclid_dist > lockpos_threshold:
+            # Pupil is outside threshold - draw red ellipse
+            frame = self.fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
+            command = self.CMD_OUT_OF_THRESHOLD
+            
+            # Send command to Arduino if tracker is available
+            if self.tracker and self.tracker.is_connected():
+                result = self.tracker.send_command(command, self.prev_command)
+
+                # Add ack cmd checker??
+                
+                if result == 1:
+                    print("OUT OF THRESHOLD command sent and acknowledged")
+                    self.prev_command = command
+                elif result == 2:
+                    print("Error: Program ended by Arduino")
+                    return frame, None  # Signal to main loop to exit
+                else:
+                    print("Failed to send OUT OF THRESHOLD command")
+                    
+            # print("Out of threshold")
+        else:
+            # Pupil is within threshold - draw green ellipse
+            frame = self.fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
+            command = self.CMD_WITHIN_THRESHOLD
+            
+            # Send command to Arduino if tracker is available
+            if self.tracker and self.tracker.is_connected():
+                result = self.tracker.send_command(command, self.prev_command)
+                
+                if result == 1:
+                    print("WITHIN THRESHOLD command sent and acknowledged")
+                    self.prev_command = command
+                elif result == 2:
+                    print("Program ended by Arduino")
+                    return frame, None  # Signal to main loop to exit
+                else:
+                    print("Failed to send WITHIN THRESHOLD command")
+            
         return frame, command
     
     def set_threshold(self, value):
@@ -845,7 +876,7 @@ if __name__ == "__main__":
     else:
         selected_port = ports[0]
         
-    eye = Eyetracker(arduino_tracker=tracker)
+    eye = EyeTracker(arduino_tracker=tracker)
     eye.select_video()
 
 

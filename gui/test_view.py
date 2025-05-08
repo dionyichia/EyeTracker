@@ -136,34 +136,35 @@ class TestView(QWidget):
         """Check the status of the test from the Arduino"""
         if self.parent and hasattr(self.parent, 'arduino_tracker') and self.parent.arduino_tracker:
             # Check if test is still running
-            if not self.parent.arduino_tracker.is_test_running():
+            if not self.parent.arduino_tracker.is_test_running:
                 self.finish_test()
                 return
             
+            # FUTURE IMPLEMENTATION Track test progress in real time, rn will slow down too much
             # Get current test status
-            status = self.parent.arduino_tracker.get_test_status()
-            if status:
-                # Update progress
-                if 'points_total' in status and status['points_total'] > 0:
-                    self.test_points_total = status['points_total']
-                    self.progress_bar.setMaximum(self.test_points_total)
+            # status = self.parent.arduino_tracker.get_test_status()
+            # if status:
+            #     # Update progress
+            #     if 'points_total' in status and status['points_total'] > 0:
+            #         self.test_points_total = status['points_total']
+            #         self.progress_bar.setMaximum(self.test_points_total)
                 
-                if 'points_completed' in status:
-                    self.test_points_completed = status['points_completed']
-                    self.progress_bar.setValue(self.test_points_completed)
-                    self.progress_label.setText(f"Points: {self.test_points_completed} / {self.test_points_total}")
+            #     if 'points_completed' in status:
+            #         self.test_points_completed = status['points_completed']
+            #         self.progress_bar.setValue(self.test_points_completed)
+            #         self.progress_label.setText(f"Points: {self.test_points_completed} / {self.test_points_total}")
                 
-                # Update last action
-                if 'last_action' in status:
-                    action = status['last_action']
-                    if action == 'point_shown':
-                        self.last_action_label.setText("Light shown - waiting for response...")
-                    elif action == 'point_clicked':
-                        self.last_action_label.setText("Light detected by user!")
-                    elif action == 'point_missed':
-                        self.last_action_label.setText("Light missed!")
-                    elif action == 'false_positive':
-                        self.last_action_label.setText("False button press!")
+            #     # Update last action
+            #     if 'last_action' in status:
+            #         action = status['last_action']
+            #         if action == 'point_shown':
+            #             self.last_action_label.setText("Light shown - waiting for response...")
+            #         elif action == 'point_clicked':
+            #             self.last_action_label.setText("Light detected by user!")
+            #         elif action == 'point_missed':
+            #             self.last_action_label.setText("Light missed!")
+            #         elif action == 'false_positive':
+            #             self.last_action_label.setText("False button press!")
     
     def start_test(self):
         """Initialize and start the test"""
@@ -176,6 +177,9 @@ class TestView(QWidget):
         # Start timers
         self.video_timer.start(33)  # ~30 fps
         self.status_timer.start(100)  # Check test status every 100ms
+
+        # Send arduino command to start test
+        self.parent.arduino_tracker.start_test()
     
     def stop_test(self):
         """Stop the test before completion"""
@@ -191,7 +195,7 @@ class TestView(QWidget):
         
         # Get final results from Arduino
         if self.parent and hasattr(self.parent, 'arduino_tracker') and self.parent.arduino_tracker:
-            results = self.parent.arduino_tracker.get_final_results()
+            results = self.parent.arduino_tracker.get_test_results()
             if results:
                 self.test_results = results
         
