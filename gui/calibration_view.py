@@ -150,7 +150,7 @@ class CalibrationView(QWidget):
         
         # Start video timer when the view is shown
         if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
-            self.video_timer.start(33)  # ~30 fps
+            self.video_timer.start(8)  # ~30 fps
     
     def hideEvent(self, event):
         """Called when the widget is hidden"""

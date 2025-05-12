@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from gui.widgets.video_widget import VideoWidget
+import json
 
 
 class TestView(QWidget):
@@ -84,6 +85,12 @@ class TestView(QWidget):
         
         self.progress_label = QLabel("Points: 0 / 0")
         progress_layout.addWidget(self.progress_label)
+
+        self.clicks_label = QLabel("Clicks Made: 0")
+        progress_layout.addWidget(self.clicks_label)
+
+        self.successful_detections_label = QLabel("Successful Detections: 0")
+        progress_layout.addWidget(self.successful_detections_label)
         
         status_layout.addWidget(progress_group)
         
@@ -140,31 +147,35 @@ class TestView(QWidget):
                 self.finish_test()
                 return
             
-            # FUTURE IMPLEMENTATION Track test progress in real time, rn will slow down too much
-            # Get current test status
-            # status = self.parent.arduino_tracker.get_test_status()
-            # if status:
-            #     # Update progress
-            #     if 'points_total' in status and status['points_total'] > 0:
-            #         self.test_points_total = status['points_total']
-            #         self.progress_bar.setMaximum(self.test_points_total)
+            # Get current test status, Track test progress in real time, currenly add too much lag
+            status = self.parent.arduino_tracker.get_test_status()
+            
+            if status['test_status'] == 'Running' and 'data' in status and status['data']:
+                data = status['data']
                 
-            #     if 'points_completed' in status:
-            #         self.test_points_completed = status['points_completed']
-            #         self.progress_bar.setValue(self.test_points_completed)
-            #         self.progress_label.setText(f"Points: {self.test_points_completed} / {self.test_points_total}")
-                
-            #     # Update last action
-            #     if 'last_action' in status:
-            #         action = status['last_action']
-            #         if action == 'point_shown':
-            #             self.last_action_label.setText("Light shown - waiting for response...")
-            #         elif action == 'point_clicked':
-            #             self.last_action_label.setText("Light detected by user!")
-            #         elif action == 'point_missed':
-            #             self.last_action_label.setText("Light missed!")
-            #         elif action == 'false_positive':
-            #             self.last_action_label.setText("False button press!")
+                # Update progress
+                points_shown = data.get('points_shown', 0)
+                num_points = data.get('num_points', 1)  # avoid divide by zero
+                click_counter = data.get('click_counter', 0)
+                click_tracker = data.get('click_tracker', '')
+
+                successful_detections = click_tracker.count('1')
+
+                progress = int((points_shown / num_points) * 100)
+                self.progress_bar.setValue(progress)
+                self.progress_label.setText(f"Points: {points_shown} / {num_points}")
+
+                self.clicks_label.setText(f"Clicks Made: {click_counter}")
+                self.successful_detections_label.setText(f"Successful Detections: {successful_detections}")
+
+            elif status['test_status'] in ('Finished', 'Ready'):
+                self.status_timer.stop()
+                self.progress_bar.setValue(100)
+                self.progress_label.setText("Test Completed")
+                self.clicks_label.setText("")
+                self.successful_detections_label.setText("")
+                self.finish_test()
+                return
     
     def start_test(self):
         """Initialize and start the test"""
@@ -175,8 +186,8 @@ class TestView(QWidget):
         self.progress_label.setText("Points: 0 / 0")
         
         # Start timers
-        self.video_timer.start(33)  # ~30 fps
-        self.status_timer.start(100)  # Check test status every 100ms
+        self.video_timer.start(8)  # ~30 fps
+        self.status_timer.start(500)  # Check test status every 100ms
 
         # Send arduino command to start test
         self.parent.arduino_tracker.start_test()

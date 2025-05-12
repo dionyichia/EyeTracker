@@ -2,6 +2,7 @@ import time
 import sys
 import serial
 import serial.tools.list_ports
+import json
 
 class ArduinoTracker:
     """Handles connection and communication with Arduino hardware."""
@@ -9,8 +10,6 @@ class ArduinoTracker:
     # Command bytes for efficient serial communication (single-byte)
     CMD_START_TEST = b'\x01'      # Start test (0x01)
     CMD_END_TEST = b'\x02'        # End test (0x02)
-    CMD_BUZZER_HIGH = b'\x03'     # High signal (LED ON) (0x03)
-    CMD_BUZZER_LOW = b'\x04'      # Low signal (LED OFF) (0x04)
     CMD_PING = b'\x05'            # Ping signal to check connection (0x05)
     CMD_WITHIN_THRESHOLD = b'\x06'  # Within threshold signal (0x06)
     CMD_OUT_OF_THRESHOLD = b'\x07'  # Out of threshold signal (0x07)
@@ -203,12 +202,11 @@ class ArduinoTracker:
             self.arduino = None
             self.is_test_running = False
 
-    def send_command(self, command, prev_command=None):
+    def send_command(self, command):
         """Send command to Arduino and verify acknowledgment.
         
         Args:
             command: Command to send
-            prev_command: Previous command sent (to avoid repeating same command)
             
         Returns:
             int: 1 if successful, 0 if failed, 2 if special response received
@@ -216,10 +214,6 @@ class ArduinoTracker:
         if not self.is_connected():
             print("Cannot send command: Not connected to Arduino")
             return 0
-            
-        # Skip sending if command hasn't changed (for efficiency)
-        if prev_command is not None and command == prev_command:
-            return 1
             
         # Convert command to bytes if it's a string
         if isinstance(command, str):
@@ -423,43 +417,48 @@ class ArduinoTracker:
         return self.ping()
     
     def get_test_status(self):
-        """Check if test is still ongoing.
-        
-        Returns:
-            status: True if finished, False otherwise
-        """
+        """Check if test is still ongoing, and retrieve current test info."""
         if not self.is_connected():
-            return False
-            
+            return {'test_status': 'Not connected'}
+
         try:
             # Clear buffers
             self.arduino.reset_input_buffer()
             self.arduino.reset_output_buffer()
-            
+
             # Send check test status command
             self.arduino.write(self.CMD_CHECK_TEST_STATUS)
             self.arduino.flush()
-            
+
             # Wait for response
             start_time = time.time()
             while time.time() - start_time < 2:
                 if self.arduino.in_waiting > 0:
                     response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-                    if self.RESP_SYSTEM_READY in response:
-                        if self.RESP_SYSTEM_READY_TEST_ENDED in response:
-                            return {'test_status': self.RESP_SYSTEM_READY, 'description': self.RESP_SYSTEM_READY_TEST_ENDED}
-                        else:
-                            return {'test_status': self.RESP_SYSTEM_READY}
-                    else:
-                        return {'test_status': self.RESP_SYSTEM_NOT_READY}
+                    print(response)
+                    if response.startswith("{") and response.endswith("}"):
+                        self.is_test_running = True
+                        try:
+                            data = json.loads(response)
+                            return {'test_status': 'Running', 'data': data}
+                        except json.JSONDecodeError:
+                            print(f"JSON decode error: {response}")
+                            return {'test_status': 'Running', 'data': None}
+                    elif self.RESP_SYSTEM_READY_TEST_ENDED in response:
+                        self.is_test_running = False
+                        return {'test_status': 'Finished'}
                     
-                time.sleep(0.1)
-                
+                    elif self.RESP_SYSTEM_READY in response:
+                        self.is_test_running = False
+                        return {'test_status': 'Ready'}
+                    else:
+                        return {'test_status': 'Running'}
+
             return {'test_status': "No response"}
-            
+
         except serial.SerialException as e:
             print(f"Ping error: {e}")
-            return False
+            return {'test_status': "Serial error"}
 
 
 def select_port_menu(ports):
@@ -543,13 +542,11 @@ if __name__ == "__main__":
                 print("No data available")
         elif command in ['H', 'L', '0', '1']:
             cmd_map = {
-                'H': tracker.CMD_BUZZER_HIGH,
-                'L': tracker.CMD_BUZZER_LOW,
                 '0': tracker.CMD_WITHIN_THRESHOLD,
                 '1': tracker.CMD_OUT_OF_THRESHOLD
             }
             
-            result = tracker.send_command(cmd_map[command], prev_command)
+            result = tracker.send_command(cmd_map[command])
             
             if result == 1:
                 print(f"Command {command} sent and acknowledged")
