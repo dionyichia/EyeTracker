@@ -1,4 +1,3 @@
-
 """
 Calibration view for the EyeTracker application
 """

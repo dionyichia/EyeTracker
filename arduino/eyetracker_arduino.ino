@@ -1,5 +1,7 @@
 #include <Servo.h>
+#include <ArduinoJson.h>
 
+// Pin definitions
 const int buzzer_pin = 3;
 const int button_pin = 5;
 const int servo1 = 9;       // first servo
@@ -7,46 +9,70 @@ const int servo2 = 10;      // second servo
 const int led_pin = 12;
 const int laser_pin = 13;
 
+// Command byte constants (single-byte for efficiency)
+const byte CMD_START_TEST = 0x01;      // Start test
+const byte CMD_END_TEST = 0x02;        // End test
+const byte CMD_PING = 0x05;            // Ping signal
+const byte CMD_WITHIN_THRESHOLD = 0x06;  // Within threshold signal
+const byte CMD_OUT_OF_THRESHOLD = 0x07;  // Out of threshold signal
+const byte CMD_CHECK_TEST_STATUS = 0x08;  // Check test status: Ready, Running, Ended
+
+// Response byte constants
+const char RESP_ACK = 'O';             // Command acknowledged
+
+// Timing constants
 const int point_duration = 5000; // wait time before shifting to next point
 const int laser_duration = 2000; // duration for laser to be turned on
 const int PRE_FIRE_DELAY = 500;    // 0.5 second delay before firing
 const int buzzer_duration = 1000; // Buzzer duration in milliseconds
 const unsigned long DEBOUNCE_DELAY = 50; 
-//const int blinker_interval = 300;
 
-int button_state = HIGH;
+// Servo movement parameters
+const float SERVO_STEPS = 6;           
+const float TOTAL_MOVE_TIME = 2000;    
+
+// State tracking variables
+int button_state = HIGH; // Active LOW, take note
 int last_button_state = HIGH;
-
-int laser_state = LOW; // If laser_state is high means the laser is already firing
-int laser_flag = LOW; // if laser_flag is high means the laser is suppoesd to be fired
-
+int laser_state = LOW;
+int laser_flag = LOW;
 int buzzer_state = LOW;
 int led_state = LOW;
+int point_tracker = 0;
 
-int point_tracker = 0; // Initialize point_tracker to 0
-
+// Timing variables
 unsigned long timestamp = 0;
-unsigned long buzzer_start_time = 0; // Timestamp to track buzzer timing
-unsigned long laser_start_time = 0; // Timestamp to track laser timing
-//unsigned long blink_timestamp = 0; // Timestamp to track laser blinking
-
-Servo myservo1;  // create servo object to control a servo
-Servo myservo2;  // create servo object to control a servo
-
-// Set coordinates of laser points (4), (1), (2), (3); (Y-axis, X-axis)
-int myPoints[4][2] = {{75, 120}, {70, 60}, {20, 60}, {30, 110}}; 
-// int myPoints[4][2] = {{75, 10}, {70, 60}, {20, 60}, {30, 15}}; Laser turret n left side of the booth
-
-// Count the number of laser points
-int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
-char click_tracker[4];
-
-int click_counter = -1;
+unsigned long buzzer_start_time = 0;
+unsigned long laser_start_time = 0;
 unsigned long last_debounce_time = 0;
 
+// Servo position tracking
+float current_servo1_pos = 90;
+float current_servo2_pos = 90;
+bool is_moving = false;
+unsigned long last_move_time = 0;
+
+// Test state variables
+bool test_running = false;
+bool test_finished = false;
+unsigned long test_start_time = 0;
+const unsigned long TEST_TIMEOUT = 300000; // 5 minutes timeout
+
+// Servo objects
+Servo myservo1;
+Servo myservo2;
+
+// Laser point coordinates (4 points): (Y-axis, X-axis)
+int myPoints[4][2] = {{75, 110}, {70, 60}, {20, 60}, {30, 110}}; 
+const int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
+char click_tracker[numPoints];
+int click_counter = 0;
+
 void setup() {
+  // Setup serial with higher baud rate for efficiency
   Serial.begin(115200);
 
+  // Configure pins
   pinMode(button_pin, INPUT_PULLUP);
   pinMode(laser_pin, OUTPUT);
   pinMode(buzzer_pin, OUTPUT);
@@ -54,60 +80,232 @@ void setup() {
   digitalWrite(buzzer_pin, buzzer_state);
 
   // Attach servos
-  myservo1.attach(servo1, 600, 2000);  // Attach the servo
-  myservo2.attach(servo2, 600, 2000);  // Attach the servo
+  myservo1.attach(servo1, 600, 2000);
+  myservo2.attach(servo2, 600, 2000);
 
-  // Initialize timestamp
-  timestamp = millis();
-
-  // Zero click tracker array
+  // Init click tracker array
   for (int i = 0; i < numPoints; i++) {
     click_tracker[i] = '0';
   }
+  
+  Serial.println("System ready");
 }
 
 void loop() {
+  unsigned long current_time = millis();
+  
+  // Process any incoming serial commands (more efficient processing)
+  if (Serial.available() > 0) {
+    byte command = Serial.read();
+    // char command = Serial.read();
+    
+    switch(command) {
+      case CMD_START_TEST:
+        if (!test_running) {
+          startTest(); // This function already prints "Test starting..."
+        } else {
+          Serial.println("System busy: Test already running");
+        }
+        break;
+        
+      case CMD_END_TEST:
+        if (test_running) {
+          endTest("Test manually stopped");
+        }
+        break;
+        
+      case CMD_PING:
+        Serial.println("System Online");
+        break;
+        
+      case CMD_WITHIN_THRESHOLD:
+        // Handle within threshold command
+        digitalWrite(led_pin, LOW);
+        led_state = LOW;
+        Serial.write(RESP_ACK);  // Send immediate acknowledgment
+        break;
+        
+      case CMD_OUT_OF_THRESHOLD:
+        // Handle out of threshold command
+        digitalWrite(led_pin, HIGH);
+        led_state = HIGH;
+        Serial.write(RESP_ACK);  // Send immediate acknowledgment
+        break;
+
+      case CMD_CHECK_TEST_STATUS:
+        { // Scope for StaticJsonDocument
+          JsonDocument doc; // Increased size slightly for safety
+          if (test_running) {
+            doc["status"] = "Test Running";
+            doc["points_shown"] = point_tracker + 1; // +1 because point_tracker is 0-indexed
+            doc["total_points"] = numPoints;
+            doc["clicks"] = click_counter;
+            // Create a temporary string for click_tracker for ArduinoJson
+            char tracker_str[numPoints + 1];
+            memcpy(tracker_str, click_tracker, numPoints);
+            tracker_str[numPoints] = '\0'; // Null-terminate
+            doc["click_pattern"] = tracker_str;
+          } else if (test_finished) {
+            doc["status"] = "Test Finished";
+            // Optionally include last test results here too
+            doc["points_shown"] = point_tracker +1;
+            doc["total_points"] = numPoints;
+            doc["clicks"] = click_counter;
+            char tracker_str[numPoints + 1];
+            memcpy(tracker_str, click_tracker, numPoints);
+            tracker_str[numPoints] = '\0';
+            doc["click_pattern"] = tracker_str;
+          } else {
+            doc["status"] = "System Ready";
+          }
+          serializeJson(doc, Serial);
+          Serial.println(); // Add a newline after JSON
+        }
+        break;
+
+      default:
+        // Unknown command, ignore
+        break;
+    }
+    
+    // Clear any remaining serial data
+    while (Serial.available()) {
+      Serial.read();
+    }
+  }
+
+  // Only execute test logic if test is running
+  if (test_running) {
+    runTestLogic(current_time);
+    
+    // Check if test should time out
+    if ((test_start_time < current_time) && (current_time - test_start_time > TEST_TIMEOUT)) {
+      endTest("Test timed out");
+    }
+  }
+}
+
+void startTest() {
+  Serial.println("Test starting...");
+  test_running = true;
+  test_finished = false;
+  test_start_time = millis();
+  timestamp = millis();
+  
+  // Reset all counters and states
+  point_tracker = 0;
+  click_counter = 0;
+  
+  for (int i = 0; i < numPoints; i++) {
+    click_tracker[i] = '0';
+  }
+  
+  // Set initial position
+  int target_x = myPoints[point_tracker][0];
+  int target_y = myPoints[point_tracker][1];
+  
+  // Store as current position without movement (first position)
+  current_servo1_pos = target_y;
+  current_servo2_pos = target_x;
+  
+  // Move servos directly to initial position (no need for smooth movement at start)
+  myservo1.write(target_y);
+  myservo2.write(target_x);
+  
+  // Remove jittering
+  delay(50);
+}
+
+void endTest(String reason) {
+  // Turn off all outputs
+  digitalWrite(laser_pin, LOW);
+  digitalWrite(buzzer_pin, LOW);
+  
+  laser_state = LOW;
+  laser_flag = LOW;
+  buzzer_state = LOW;
+  
+  test_running = false;
+  test_finished = true;
+  
+  // Report test results
+  Serial.println("TEST_END");
+  Serial.print("Reason: ");
+  Serial.println(reason);
+  Serial.print("Click counter: ");
+  Serial.println(click_counter);
+  Serial.print("Click tracker: ");
+  Serial.println(click_tracker);
+  
+  Serial.println("System ready");
+}
+
+void smoothServoMove(int target_servo1, int target_servo2) {
+  // Calculate the step sizes for each servo
+  float step_size1 = (target_servo1 - current_servo1_pos) / (float)SERVO_STEPS;
+  float step_size2 = (target_servo2 - current_servo2_pos) / (float)SERVO_STEPS;
+
+  // Calculate delay between steps
+  int step_delay = TOTAL_MOVE_TIME / SERVO_STEPS;
+
+  // Variables to track intermediate positions
+  float pos1 = current_servo1_pos;
+  float pos2 = current_servo2_pos;
+
+  // Perform the gradual movement
+  for (int i = 1; i <= SERVO_STEPS; i++) {
+    // Calculate intermediate positions
+    pos1 = current_servo1_pos + (step_size1 * i);
+    pos2 = current_servo2_pos + (step_size2 * i);
+
+    // Move servos to the calculated positions
+    int rounded_pos1 = round(pos1);
+    int rounded_pos2 = round(pos2);
+
+    // Write positions to servos
+    myservo1.write(rounded_pos1);
+    myservo2.write(rounded_pos2);
+
+    // Allow time for servo to move
+    delay(step_delay);
+  }
+
+  // Make sure we're at the final position
+  myservo1.write(target_servo1);
+  myservo2.write(target_servo2);
+
+  // Update current positions
+  current_servo1_pos = target_servo1;
+  current_servo2_pos = target_servo2;
+}
+
+void runTestLogic(unsigned long current_time) {
   // Check current time and duration
-  unsigned long current_time = millis(); 
-  unsigned long duration = current_time - timestamp; 
-  unsigned long blinker_interval_tracker;
-  //Serial.println("current_time,timestamp,duration");
-  //Serial.println(current_time);
-  //Serial.println(timestamp);
-  //Serial.println(duration);
+  unsigned long duration = current_time - timestamp;
 
   // Inverse logic, if 1 means button not pressed, 0 means button pressed
   int reading = digitalRead(button_pin);
-  //Serial.println(reading);
 
   if (reading != last_button_state) {
     last_debounce_time = current_time;
     last_button_state = reading;
-    //Serial.println(reading);
   }
 
   if (duration > point_duration) {
-    // If laser is still on turn it off before moing
-    if (laser_state == HIGH){
+    // If laser is still on turn it off before moving
+    if (laser_state == HIGH) {
       digitalWrite(laser_pin, LOW);
       laser_state = LOW;
     }
 
     // Update point_tracker to the next point
-    point_tracker = (point_tracker + 1) % numPoints;
-    //Serial.println("point_tracker");
-    //Serial.println(point_tracker);
+    point_tracker++;
 
-    int x = myPoints[point_tracker][0];
-    int y = myPoints[point_tracker][1];
+    int target_x = myPoints[point_tracker][0];
+    int target_y = myPoints[point_tracker][1];
 
-    // Move the servos
-    myservo2.write(x);  // Move the second servo to x position
-    myservo1.write(y);  // Move the first servo to y position
-  
-    // Detach servos
-    //myservo1.detach();  // Attach the servo
-    //myservo2.detach();  // Attach the servo
+    // Move the servos smoothly instead of abruptly
+    smoothServoMove(target_y, target_x);  // Note: servo1=y, servo2=x
 
     // Set up laser firing
     laser_flag = HIGH;
@@ -116,123 +314,63 @@ void loop() {
 
     // Update timestamp
     timestamp = current_time;
-    click_counter++;
+    
+    // Check if we've completed a full cycle and end the test
+    if (point_tracker >= numPoints) {
+      endTest("Test completed successfully");
+      return;
+    }
   }
 
-  // If laser is OFF and button is pressed, debounce click, turn on buzzer,
+  // Button debounce and handling
   if ((current_time - last_debounce_time) > DEBOUNCE_DELAY) {
     if (reading != button_state) {
       button_state = reading;
     
       if (button_state == LOW) {
         if (laser_state == LOW) {
-          // Serial.println("Wrong press turn on buzzer");
+          // Wrong press, turn on buzzer
           digitalWrite(buzzer_pin, HIGH);
           buzzer_state = HIGH;
           buzzer_start_time = current_time;
         } 
-
-        // If laser is ON and button is pressed, turn off laser
         else {
           // Turn off laser
-          // Serial.println("laser off");
           digitalWrite(laser_pin, LOW);
           laser_state = LOW;
           laser_flag = LOW;
           
-
-          // if (click_counter > 0) {  // Only decrement if positive
-          // click_counter--;
-          // }
-
           // Add click to click tracker
-          click_tracker[click_counter] = '1';
+          click_tracker[point_tracker] = '1';
         }
 
+        click_counter++;
       } 
     }
   }
   
-  // Communicate with Python Script
-  if (Serial.available() > 0) {
-    // Serial.println("reading");
-
-      // Clear the input buffer first
-      while (Serial.available()) {
-        char command = Serial.read();
-        
-        if (command == 'H') {
-          // digitalWrite(buzzer_pin, HIGH);       
-          // buzzer_state = HIGH;
-          // buzzer_start_time = current_time;
-          // laser_state = HIGH;
-          digitalWrite(led_pin, HIGH);  
-          led_state = HIGH;
-          Serial.println('O');
-          // Serial.println('fire');
-          
-        } else if (command == 'L') {
-          // digitalWrite(buzzer_pin, LOW);  
-          // buzzer_state = LOW;
-          // laser_state = LOW;
-          digitalWrite(led_pin, LOW);  
-          led_state = LOW;
-          Serial.println('O');
-        }
-      }
-  }
-
-  // laser control logic
+  // Laser control logic
   if (laser_flag == HIGH) {
-      if (laser_state == LOW) {
-          if (current_time - laser_start_time >= PRE_FIRE_DELAY) {
-              digitalWrite(laser_pin, HIGH);
-              laser_state = HIGH;
-              laser_start_time = current_time;  // Reset start time for duration tracking
-              // Serial.println("on laser");
-          }
+    if (laser_state == LOW) {
+      if (current_time - laser_start_time >= PRE_FIRE_DELAY) {
+        digitalWrite(laser_pin, HIGH);
+        laser_state = HIGH;
+        laser_start_time = current_time;  // Reset start time for duration tracking
       }
-      else if (current_time - laser_start_time >= laser_duration) {
-          // Turn off laser after duration
-          digitalWrite(laser_pin, LOW);
-          laser_state = LOW;
-          laser_flag = LOW;
-          // Serial.println("off laser");
-      }
-  }
-
-  if (buzzer_state == HIGH) {    
-    if (current_time - buzzer_start_time >= buzzer_duration) {
-        digitalWrite(buzzer_pin, LOW);  // Turn off the buzzer
-        buzzer_state = LOW;
-        // digitalWrite(led_pin, LOW);  // Turn off the LED
-        // led_state = LOW;
+    }
+    else if (current_time - laser_start_time >= laser_duration) {
+      // Turn off laser after duration
+      digitalWrite(laser_pin, LOW);
+      laser_state = LOW;
+      laser_flag = LOW;
     }
   }
-  else {                              
-      digitalWrite(buzzer_pin, LOW);
+
+  // Buzzer control logic
+  if (buzzer_state == HIGH) {    
+    if (current_time - buzzer_start_time >= buzzer_duration) {
+      digitalWrite(buzzer_pin, LOW);  // Turn off the buzzer
       buzzer_state = LOW;
-      // digitalWrite(led_pin, LOW);  // Turn off the LED
-      // led_state = LOW;
+    }
   }
-
-  //  To end the program
-  if(current_time > 100000) {
-    //Send counter back to python script
-    Serial.println(click_counter);  // Send counter value
-    Serial.println(click_tracker);  // Send counter value
-    while(1) {} // Actually stop the program
-  }
-
 }
-
-
-// Testing Blink the laser if button is not pressed after 3 seconds of laser firing
-  //else if ((button_state == LOW) && (laser_state == HIGH) && (duration > 3000)) {
-    //if (current_time - blink_timestamp >= blink_interval) {
-      // Toggle laser state for blinking
-      //laser_state = !laser_state;
-      //digitalWrite(laser_pin, laser_state);
-      //blink_timestamp = current_time; // Update blink timestamp
-    //}
-  //}
