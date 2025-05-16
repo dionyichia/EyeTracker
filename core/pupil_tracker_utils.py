@@ -43,31 +43,51 @@ class EyeTrackerUtils:
         
         :param frame: The input frame (image) to zoom into.
         :param zoom_factor: The factor by which to zoom. Values greater than 1 will zoom in.
-        :param center: The center of the zoom. If None, zooms into the center of the frame.
+        :param center: The center of the zoom as a tuple of (x_ratio, y_ratio) in the range 0-1.
+                    If None, zooms into the center of the frame.
         :return: The zoomed-in frame.
         """
         (h, w) = frame.shape[:2]
         
+        # Get center coordinates
         if center is None:
-            center = (w // 2, h // 2)
+            center_x = w // 2
+            center_y = h // 2
+        else:
+            # Convert from ratio (0-1) to pixel coordinates
+            center_x = int(w * center[0])
+            center_y = int(h * center[1])
         
         # Calculate the new dimensions
         new_w = int(w / zoom_factor)
         new_h = int(h / zoom_factor)
         
         # Calculate the cropping box
-        x = max(center[0] - new_w // 2, 0)
-        y = max(center[1] - new_h // 2, 0)
+        x = max(center_x - new_w // 2, 0)
+        y = max(center_y - new_h // 2, 0)
+        
+        # Ensure we're not exceeding frame bounds
+        if x + new_w > w:
+            x = w - new_w
+        if y + new_h > h:
+            y = h - new_h
+        
+        # Ensure cropping box dimensions are valid
+        x = max(0, x)
+        y = max(0, y)
         x2 = min(x + new_w, w)
         y2 = min(y + new_h, h)
         
         # Crop and resize the frame
         cropped_frame = frame[y:y2, x:x2]
-        zoomed_frame = cv2.resize(cropped_frame, (w, h))
         
-        return zoomed_frame
-
-
+        # Check if we have valid dimensions before resizing
+        if cropped_frame.shape[0] > 0 and cropped_frame.shape[1] > 0:
+            zoomed_frame = cv2.resize(cropped_frame, (w, h))
+            return zoomed_frame
+        else:
+            # Return original frame if cropping resulted in an invalid size
+            return frame
 
     # Contour Detection and Processing
     #mask all pixels outside a square defined by center and size
