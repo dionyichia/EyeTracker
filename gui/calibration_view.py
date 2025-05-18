@@ -310,7 +310,10 @@ class CalibrationView(QWidget):
         self.zoom_factor_label.setText("Current: 1x")
         self.is_zoomed = False
         self.zoom_selection_active = False
+        self.zoom_region = None
         self.zoom_region_center = None
+        self.zoom_center = None
+        self.previous_zoom_factor = 1
         
         # Reset zoom in eye tracker
         if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:

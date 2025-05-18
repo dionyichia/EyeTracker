@@ -235,94 +235,6 @@ class EyeTracker():
         processed_frame = self._process_single_frame(frame)
         return processed_frame
 
-    # def process_video(self, video_path, input_method, zoom_factor=5, zoom_center=None, arduino_port=None, threshold_swtich_confidence_margin=1):
-    #     fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4 format
-    #     out = cv2.VideoWriter('C:/Storage/Source Videos/output_video.mp4', fourcc, 30.0, (640, 480))  # Output video filename, codec, frame rate, and frame size
-
-    #     if input_method == 1:
-    #         cap = cv2.VideoCapture(video_path)
-    #     elif input_method == 2:
-    #         cap = cv2.VideoCapture(0)  # Camera input
-    #         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2048) # Resolution set to 2k (2048, 1080)
-    #         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-    #         cap.set(cv2.CAP_PROP_EXPOSURE, 0)
-    #     else:
-    #         print("Invalid video source.")
-    #         return
-
-    #     if not cap.isOpened():
-    #         print("Error: Could not open video.")
-    #         return
-        
-    #     self.is_position_locked = False
-    #     self.locked_position = -1
-
-    #     # Track last index used, use to implement Confidence-Based Threshold Switching btw threshold to reduce flickering
-    #     prev_threshold_index = 0
-
-    #     # Track last command sent to arduino, only send command if there is a change in command
-    #     self.prev_command = 'L'
-
-    #     while True:
-    #         ret, frame = cap.read()
-    #         if not ret:
-    #             break
-
-    #         # Crop and resize frame
-    #         frame = EyeTrackerUtils.crop_to_aspect_ratio(frame)
-
-    #         # Apply zoom effect
-    #         frame = EyeTrackerUtils.zoom_frame(frame, zoom_factor, zoom_center)
-
-    #         # Find the darkest point
-    #         self.pupil_center_pos = self.get_darkest_area(frame)
-
-    #         # Convert to grayscale to handle pixel value operations
-    #         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    #         darkest_pixel_value = gray_frame[self.pupil_center_pos[1], self.pupil_center_pos[0]]
-            
-    #         # Apply thresholding operations at different levels
-    #         thresholded_image_strict = EyeTrackerUtils.apply_binary_threshold(gray_frame, darkest_pixel_value, 5)  # lite
-    #         thresholded_image_strict = EyeTrackerUtils.mask_outside_square(thresholded_image_strict, self.pupil_center_pos, 250)
-
-    #         thresholded_image_medium = EyeTrackerUtils.apply_binary_threshold(gray_frame, darkest_pixel_value, 15)  # medium
-    #         thresholded_image_medium = EyeTrackerUtils.mask_outside_square(thresholded_image_medium, self.pupil_center_pos, 250)
-            
-    #         thresholded_image_relaxed = EyeTrackerUtils.apply_binary_threshold(gray_frame, darkest_pixel_value, 25)  # heavy
-    #         thresholded_image_relaxed = EyeTrackerUtils.mask_outside_square(thresholded_image_relaxed, self.pupil_center_pos, 250)
-            
-    #         # Take the three images thresholded at different levels and process them
-    #         print("lock_mode ", self.is_position_locked)
-    #         pupil_rotated_rect, final_contours, threshold_index = self.process_frames(prev_threshold_index, threshold_swtich_confidence_margin, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, frame, gray_frame)
-
-    #         # Set the current threshold being used as the prev threshold index, once image processed.
-    #         prev_threshold_index = threshold_index
-
-    #         key = cv2.waitKey(1) & 0xFF
-
-    #         if key == ord('q'):
-    #             break
-    #         elif key == ord(' '):
-    #             while True:
-    #                 key = cv2.waitKey(1) & 0xFF
-    #                 if key == ord(' '):
-    #                     break
-    #                 elif key == ord('q'):
-    #                     break
-    #         if key == ord('l') and not self.is_position_locked:
-    #             print("Setting lock")
-    #             self.locked_position = self.pupil_center_pos
-    #             self.is_position_locked = True
-    #         elif key == ord('l') and self.is_position_locked:
-    #             print("Resetting lock")
-    #             self.locked_position = -1
-    #             self.is_position_locked = False
-
-    #     arduino_port.close()
-    #     cap.release()
-    #     out.release()
-    #     cv2.destroyAllWindows()
-
     def _initialize_camera(self):
         """Initialize the webcam"""
         try:
@@ -331,8 +243,8 @@ class EyeTracker():
             else:
                 self.cap = cv2.VideoCapture(0)  # Use default camera
 
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2048)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
             self.cap.set(cv2.CAP_PROP_EXPOSURE, 0)
             
             if not self.cap.isOpened():

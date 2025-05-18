@@ -3,10 +3,11 @@ Main application window for the EyeTracker application
 """
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
-    QPushButton, QLabel, QMessageBox, QStatusBar
+    QPushButton, QLabel, QMessageBox, QStatusBar, QHBoxLayout,
+    QFrame
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon, QAction, QKeySequence
+from PyQt6.QtGui import QIcon, QAction, QKeySequence, QFont, QPixmap
 
 from gui.calibration_view import CalibrationView
 from gui.test_view import TestView
@@ -22,6 +23,20 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.config = config
+        
+        # Define application color palette
+        self.app_colors = {
+            "primary": "#2c3e50",      # Dark blue for headers and main elements
+            "secondary": "#3498db",    # Lighter blue for accent elements
+            "success": "#2ecc71",      # Green for success actions
+            "warning": "#f39c12",      # Orange for warnings
+            "danger": "#e74c3c",       # Red for critical actions
+            "light": "#ecf0f1",        # Light gray for backgrounds
+            "dark": "#34495e",         # Darker shade for text
+            "white": "#ffffff",        # White for contrast elements
+            "black": "#000000"         # Black for text
+        }
+        
         self.setup_ui()
         
         # Initialize core components
@@ -41,16 +56,127 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Set up the user interface"""
         # Set window properties
-        self.setWindowTitle("EyeTracker")
-        self.setMinimumSize(800, 600)
+        self.setWindowTitle("EyeTracker - Visual Field Test Assistant")
+        self.setMinimumSize(1000, 700)
+        
+        # Set application stylesheet
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {self.app_colors["light"]};
+            }}
+            QLabel {{
+                color: {self.app_colors["dark"]};
+                font-size: 14px;
+            }}
+            QPushButton {{
+                background-color: {self.app_colors["secondary"]};
+                color: {self.app_colors["white"]};
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-height: 30px;
+            }}
+            QPushButton:hover {{
+                background-color: #2980b9;
+            }}
+            QPushButton:disabled {{
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }}
+            QStatusBar {{
+                background-color: {self.app_colors["primary"]};
+                color: {self.app_colors["white"]};
+                font-weight: bold;
+                min-height: 25px;
+            }}
+            QMenuBar {{
+                background-color: {self.app_colors["primary"]};
+                color: {self.app_colors["white"]};
+            }}
+            QMenuBar::item {{
+                background-color: {self.app_colors["primary"]};
+                color: {self.app_colors["white"]};
+                padding: 8px 16px;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {self.app_colors["secondary"]};
+            }}
+            QMenu {{
+                background-color: {self.app_colors["white"]};
+                color: {self.app_colors["dark"]};
+                border: 1px solid #bdc3c7;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.app_colors["secondary"]};
+                color: {self.app_colors["white"]};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                margin-top: 12px;
+                padding-top: 16px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 10px;
+                color: {self.app_colors["primary"]};
+            }}
+        """)
         
         # Create central widget with stacked layout for different views
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        
+        # Create header frame
+        self.header_frame = QFrame()
+        self.header_frame.setStyleSheet(f"""
+            background-color: {self.app_colors["primary"]};
+            color: {self.app_colors["white"]};
+            padding: 10px;
+            min-height: 70px;
+        """)
+        self.header_layout = QHBoxLayout(self.header_frame)
+        
+        # Add logo (placeholder)
+        self.logo_label = QLabel("EyeTracker")
+        self.logo_label.setStyleSheet("""
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        """)
+        self.header_layout.addWidget(self.logo_label)
+        
+        # Add header text
+        self.header_text = QLabel("Visual Field Test Assistant")
+        self.header_text.setStyleSheet("""
+            font-size: 18px;
+            color: white;
+            padding-left: 20px;
+        """)
+        self.header_layout.addWidget(self.header_text)
+        self.header_layout.addStretch()
+        
+        # Add header to main layout
+        self.main_layout.addWidget(self.header_frame)
+        
+        # Container for the stacked widget with margin
+        self.content_container = QWidget()
+        self.content_layout = QVBoxLayout(self.content_container)
+        self.content_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Create stacked widget for different views
         self.stacked_widget = QStackedWidget()
-        self.main_layout.addWidget(self.stacked_widget)
+        self.content_layout.addWidget(self.stacked_widget)
+        
+        # Add content container to main layout
+        self.main_layout.addWidget(self.content_container)
         
         # Create the different views
         self.welcome_view = self.create_welcome_view()
@@ -100,31 +226,102 @@ class MainWindow(QMainWindow):
     def create_welcome_view(self):
         """Create the welcome view"""
         welcome_widget = QWidget()
+        welcome_widget.setStyleSheet(f"""
+            background-color: {self.app_colors["white"]};
+            border-radius: 8px;
+        """)
+        
         layout = QVBoxLayout(welcome_widget)
+        layout.setContentsMargins(30, 40, 30, 40)
+        layout.setSpacing(20)
+        
+        # Welcome container
+        welcome_container = QFrame()
+        welcome_container.setStyleSheet("""
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+        """)
+        welcome_layout = QVBoxLayout(welcome_container)
+        welcome_layout.setSpacing(20)
         
         # Welcome label
         welcome_label = QLabel("Welcome to EyeTracker")
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setStyleSheet("font-size: 24px; font-weight: bold; margin: 20px;")
-        layout.addWidget(welcome_label)
+        welcome_label.setStyleSheet("""
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin: 20px;
+        """)
+        welcome_layout.addWidget(welcome_label)
         
         # Description label
         description = (
-            "This application helps administer the Humphrey Visual Field Test.\n\n"
-            "Please connect your Arduino device and eye tracking camera, then click 'Connect Devices'."
+            "This application assists in administering the Humphrey Visual Field Test "
+            "by tracking patient eye position and movement.\n\n"
+            "To begin, please connect your Arduino device and eye tracking camera."
         )
         desc_label = QLabel(description)
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
-        layout.addWidget(desc_label)
+        desc_label.setStyleSheet("""
+            font-size: 16px;
+            color: #34495e;
+            margin: 10px 30px;
+            line-height: 1.5;
+        """)
+        welcome_layout.addWidget(desc_label)
+        
+        # Steps container
+        steps_container = QFrame()
+        steps_container.setStyleSheet("""
+            background-color: white;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 20px;
+        """)
+        steps_layout = QVBoxLayout(steps_container)
+        
+        # Steps header
+        steps_header = QLabel("Getting Started")
+        steps_header.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        """)
+        steps_layout.addWidget(steps_header)
+        
+        # Steps content
+        steps_content = QLabel(
+            "1. Click 'Connect Devices' to detect hardware\n"
+            "2. Calibrate the eye position using the calibration tools\n"
+            "3. Adjust sensitivity settings to match the patient\n"
+            "4. Run the visual field test with accurate tracking"
+        )
+        steps_content.setStyleSheet("""
+            font-size: 14px;
+            line-height: 1.8;
+            color: #34495e;
+            margin-left: 10px;
+        """)
+        steps_layout.addWidget(steps_content)
+        
+        welcome_layout.addWidget(steps_container)
+        welcome_layout.addStretch()
         
         # Connect button
         connect_button = QPushButton("Connect Devices")
         connect_button.clicked.connect(self.connect_devices)
         connect_button.setMinimumHeight(50)
-        layout.addWidget(connect_button)
+        connect_button.setStyleSheet(f"""
+            background-color: {self.app_colors["success"]};
+            font-size: 16px;
+            padding: 12px;
+        """)
+        welcome_layout.addWidget(connect_button)
         
-        layout.addStretch()
+        layout.addWidget(welcome_container)
         
         return welcome_widget
     
@@ -135,18 +332,22 @@ class MainWindow(QMainWindow):
     
     def show_welcome_view(self):
         """Switch to welcome view"""
+        self.header_text.setText("Visual Field Test Assistant")
         self.stacked_widget.setCurrentWidget(self.welcome_view)
     
     def show_calibration_view(self):
         """Switch to calibration view"""
+        self.header_text.setText("Eye Position Calibration")
         self.stacked_widget.setCurrentWidget(self.calibration_view)
     
     def show_test_view(self):
         """Switch to test view"""
+        self.header_text.setText("Visual Field Test")
         self.stacked_widget.setCurrentWidget(self.test_view)
     
     def show_results_view(self, results=None):
         """Switch to results view"""
+        self.header_text.setText("Test Results")
         if results:
             self.results_view.set_results(results)
         self.stacked_widget.setCurrentWidget(self.results_view)
@@ -154,6 +355,9 @@ class MainWindow(QMainWindow):
     def connect_devices(self):
         """Connect to Arduino and camera"""
         try:            
+            # Show connecting message
+            self.status_bar.showMessage("Connecting to devices...")
+            
             # Initialize Arduino tracker with port selection callback
             self.arduino_tracker = ArduinoTracker(
                 auto_connect=True,
@@ -186,48 +390,83 @@ class MainWindow(QMainWindow):
             )
     
     def select_arduino_port(self, ports):
-        """Show dialog to let user select the correct Arduino port
+        pass
+    #     """Show dialog to let user select the correct Arduino port
         
-        Args:
-            ports: List of available ports
+    #     Args:
+    #         ports: List of available ports
             
-        Returns:
-            str: Selected port or None if canceled
-        """
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox
+    #     Returns:
+    #         str: Selected port or None if canceled
+    #     """
+    #     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox
         
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Select Arduino Port")
-        dialog.setMinimumWidth(400)
+    #     dialog = QDialog(self)
+    #     dialog.setWindowTitle("Select Arduino Port")
+    #     dialog.setMinimumWidth(400)
+    #     dialog.setStyleSheet(f"""
+    #         QDialog {{
+    #             background-color: {self.app_colors["white"]};
+    #         }}
+    #         QLabel {{
+    #             color: {self.app_colors["dark"]};
+    #             font-size: 14px;
+    #             margin-bottom: 10px;
+    #         }}
+    #         QListWidget {{
+    #             border: 1px solid #bdc3c7;
+    #             border-radius: 4px;
+    #             padding: 5px;
+    #             background-color: {self.app_colors["white"]};
+    #         }}
+    #         QListWidget::item {{
+    #             padding: 8px;
+    #             border-bottom: 1px solid #ecf0f1;
+    #         }}
+    #         QListWidget::item:selected {{
+    #             background-color: {self.app_colors["secondary"]};
+    #             color: {self.app_colors["white"]};
+    #         }}
+    #         QPushButton {{
+    #             background-color: {self.app_colors["secondary"]};
+    #             color: {self.app_colors["white"]};
+    #             border: none;
+    #             padding: 8px 16px;
+    #             border-radius: 4px;
+    #             font-weight: bold;
+    #         }}        
+    #     """)
         
-        layout = QVBoxLayout(dialog)
+    #     layout = QVBoxLayout(dialog)
+    #     layout.setContentsMargins(20, 20, 20, 20)
+    #     layout.setSpacing(15)
         
-        # Add helpful message
-        message = QLabel("Multiple Arduino devices detected. Please select the correct port:")
-        layout.addWidget(message)
+    #     # Add helpful message
+    #     message = QLabel("Multiple Arduino devices detected. Please select the correct port:")
+    #     layout.addWidget(message)
         
-        # Create list widget for port selection
-        port_list = QListWidget()
-        for port_info in ports:
-            item = QListWidgetItem(f"{port_info['port']} - {port_info['description']}")
-            item.setData(Qt.ItemDataRole.UserRole, port_info['port'])
-            port_list.addWidget(item)
+    #     # Create list widget for port selection
+    #     port_list = QListWidget()
+    #     for port_info in ports:
+    #         item = QListWidgetItem(f"{port_info['port']} - {port_info['description']}")
+    #         item.setData(Qt.ItemDataRole.UserRole, port_info['port'])
+    #         port_list.addWidget(item)
         
-        layout.addWidget(port_list)
+    #     layout.addWidget(port_list)
         
-        # Add buttons
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
+    #     # Add buttons
+    #     buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+    #     buttons.accepted.connect(dialog.accept)
+    #     buttons.rejected.connect(dialog.reject)
+    #     layout.addWidget(buttons)
         
-        # Show dialog and process result
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected_items = port_list.selectedItems()
-            if selected_items:
-                return selected_items[0].data(Qt.ItemDataRole.UserRole)
+    #     # Show dialog and process result
+    #     if dialog.exec() == QDialog.DialogCode.Accepted:
+    #         selected_items = port_list.selectedItems()
+    #         if selected_items:
+    #             return selected_items[0].data(Qt.ItemDataRole.UserRole)
         
-        return None  # User canceled or no selection
+    #     return None  # User canceled or no selection
 
     
     def start_test(self):
@@ -259,13 +498,36 @@ class MainWindow(QMainWindow):
     
     def show_about(self):
         """Show about dialog"""
-        QMessageBox.about(
-            self,
-            "About EyeTracker",
-            "EyeTracker v1.0\n\n"
-            "A lightweight, robust eye-tracking system used as part of the "
-            "pre-assessment preparation for patients undergoing the Humphrey Visual Field Test."
+        about_box = QMessageBox(self)
+        about_box.setWindowTitle("About EyeTracker")
+        about_box.setTextFormat(Qt.TextFormat.RichText)
+        about_box.setText(
+            "<h2>EyeTracker v1.0</h2>"
+            "<p>A lightweight, robust eye-tracking system used as part of the "
+            "pre-assessment preparation for patients undergoing the Humphrey Visual Field Test.</p>"
+            "<p><b>Features:</b></p>"
+            "<ul>"
+            "<li>Real-time pupil detection and tracking</li>"
+            "<li>Arduino integration for stimulus control</li>"
+            "<li>Advanced calibration tools</li>"
+            "<li>Comprehensive test results</li>"
+            "</ul>"
         )
+        about_box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        about_box.setStyleSheet(f"""
+            QMessageBox {{
+                background-color: {self.app_colors["white"]};
+            }}
+            QPushButton {{
+                background-color: {self.app_colors["secondary"]};
+                color: {self.app_colors["white"]};
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+        """)
+        about_box.exec()
     
     def closeEvent(self, event):
         """Handle application close event"""

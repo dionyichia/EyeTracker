@@ -149,6 +149,7 @@ class TestView(QWidget):
             
             # Get current test status, Track test progress in real time, currenly add too much lag
             status = self.parent.arduino_tracker.get_test_status()
+            print("Status ", status)
             
             if status['test_status'] == 'Running' and 'data' in status and status['data']:
                 data = status['data']

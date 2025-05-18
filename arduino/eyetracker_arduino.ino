@@ -4,8 +4,8 @@
 // Pin definitions
 const int buzzer_pin = 3;
 const int button_pin = 5;
-const int servo1 = 9;       // first servo
-const int servo2 = 10;      // second servo
+const int servo1 = 9;       // first servo, grey wire
+const int servo2 = 10;      // second servo, blue wire
 const int led_pin = 12;
 const int laser_pin = 13;
 
@@ -17,6 +17,13 @@ const byte CMD_WITHIN_THRESHOLD = 0x06;  // Within threshold signal
 const byte CMD_OUT_OF_THRESHOLD = 0x07;  // Out of threshold signal
 const byte CMD_CHECK_TEST_STATUS = 0x08;  // Check test status: Ready, Running, Ended
 
+// const char CMD_START_TEST = '1';      // Start test
+// const char CMD_END_TEST = '2';        // End test
+// const char CMD_PING = '3';            // Ping signal
+// const char CMD_WITHIN_THRESHOLD = '4';  // Within threshold signal
+// const char CMD_OUT_OF_THRESHOLD = '5';  // Out of threshold signal
+// const char CMD_CHECK_TEST_STATUS = '6';  // Check test status: Ready, Running, Ended
+
 // Response byte constants
 const char RESP_ACK = 'O';             // Command acknowledged
 
@@ -26,10 +33,11 @@ const int laser_duration = 2000; // duration for laser to be turned on
 const int PRE_FIRE_DELAY = 500;    // 0.5 second delay before firing
 const int buzzer_duration = 1000; // Buzzer duration in milliseconds
 const unsigned long DEBOUNCE_DELAY = 50; 
+const int PROGRESS_INTERVAL = 100; // Send progress report every 100ms
 
 // Servo movement parameters
-const float SERVO_STEPS = 6;           
-const float TOTAL_MOVE_TIME = 2000;    
+const float SERVO_STEPS = 1;           
+// const float TOTAL_MOVE_TIME = 2000;    
 
 // State tracking variables
 int button_state = HIGH; // Active LOW, take note
@@ -45,6 +53,7 @@ unsigned long timestamp = 0;
 unsigned long buzzer_start_time = 0;
 unsigned long laser_start_time = 0;
 unsigned long last_debounce_time = 0;
+unsigned long last_progress_send_time = 0;
 
 // Servo position tracking
 float current_servo1_pos = 90;
@@ -62,8 +71,9 @@ const unsigned long TEST_TIMEOUT = 300000; // 5 minutes timeout
 Servo myservo1;
 Servo myservo2;
 
-// Laser point coordinates (4 points): (Y-axis, X-axis)
-int myPoints[4][2] = {{75, 110}, {70, 60}, {20, 60}, {30, 110}}; 
+// Laser point coordinates (4 points): (Y-axis: 0 (top) - 180 (bottom), X-axis: 0 (right) - 180 (left)) 
+// int myPoints[4][2] = {{75, 110}, {70, 60}, {20, 60}, {30, 110}}; 
+int myPoints[4][2] = {{20, 130}, {60, 130}, {60, 70}, {10, 70}}; 
 const int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
 char click_tracker[numPoints];
 int click_counter = 0;
@@ -122,14 +132,14 @@ void loop() {
         // Handle within threshold command
         digitalWrite(led_pin, LOW);
         led_state = LOW;
-        Serial.write(RESP_ACK);  // Send immediate acknowledgment
+        // Serial.write(RESP_ACK);  // Send immediate acknowledgment
         break;
         
       case CMD_OUT_OF_THRESHOLD:
         // Handle out of threshold command
         digitalWrite(led_pin, HIGH);
         led_state = HIGH;
-        Serial.write(RESP_ACK);  // Send immediate acknowledgment
+        // Serial.write(RESP_ACK);  // Send immediate acknowledgment
         break;
 
       case CMD_CHECK_TEST_STATUS:
@@ -177,7 +187,12 @@ void loop() {
   // Only execute test logic if test is running
   if (test_running) {
     runTestLogic(current_time);
-    
+
+    if (millis() - last_progress_send_time >= PROGRESS_INTERVAL) {
+      printTestStatus();; // Controlled interval
+      last_progress_send_time = millis();
+    }
+
     // Check if test should time out
     if ((test_start_time < current_time) && (current_time - test_start_time > TEST_TIMEOUT)) {
       endTest("Test timed out");
@@ -242,33 +257,33 @@ void endTest(String reason) {
 
 void smoothServoMove(int target_servo1, int target_servo2) {
   // Calculate the step sizes for each servo
-  float step_size1 = (target_servo1 - current_servo1_pos) / (float)SERVO_STEPS;
-  float step_size2 = (target_servo2 - current_servo2_pos) / (float)SERVO_STEPS;
+  // float step_size1 = (target_servo1 - current_servo1_pos) / (float)SERVO_STEPS;
+  // float step_size2 = (target_servo2 - current_servo2_pos) / (float)SERVO_STEPS;
 
   // Calculate delay between steps
-  int step_delay = TOTAL_MOVE_TIME / SERVO_STEPS;
+  // int step_delay = TOTAL_MOVE_TIME / SERVO_STEPS;
 
-  // Variables to track intermediate positions
-  float pos1 = current_servo1_pos;
-  float pos2 = current_servo2_pos;
+  // // Variables to track intermediate positions
+  // float pos1 = current_servo1_pos;
+  // float pos2 = current_servo2_pos;
 
-  // Perform the gradual movement
-  for (int i = 1; i <= SERVO_STEPS; i++) {
-    // Calculate intermediate positions
-    pos1 = current_servo1_pos + (step_size1 * i);
-    pos2 = current_servo2_pos + (step_size2 * i);
+  // // Perform the gradual movement
+  // for (int i = 1; i <= SERVO_STEPS; i++) {
+  //   // Calculate intermediate positions
+  //   pos1 = current_servo1_pos + (step_size1 * i);
+  //   pos2 = current_servo2_pos + (step_size2 * i);
 
-    // Move servos to the calculated positions
-    int rounded_pos1 = round(pos1);
-    int rounded_pos2 = round(pos2);
+  //   // Move servos to the calculated positions
+  //   int rounded_pos1 = round(pos1);
+  //   int rounded_pos2 = round(pos2);
 
-    // Write positions to servos
-    myservo1.write(rounded_pos1);
-    myservo2.write(rounded_pos2);
+  //   // Write positions to servos
+  //   myservo1.write(rounded_pos1);
+  //   myservo2.write(rounded_pos2);
 
-    // Allow time for servo to move
-    delay(step_delay);
-  }
+  //   // Allow time for servo to move
+  //   delay(step_delay);
+  // }
 
   // Make sure we're at the final position
   myservo1.write(target_servo1);
@@ -277,6 +292,34 @@ void smoothServoMove(int target_servo1, int target_servo2) {
   // Update current positions
   current_servo1_pos = target_servo1;
   current_servo2_pos = target_servo2;
+}
+
+void printTestStatus() {
+  JsonDocument doc; // Increased size slightly for safety
+  if (test_running) {
+    doc["points_shown"] = point_tracker + 1; // +1 because point_tracker is 0-indexed
+    doc["total_points"] = numPoints;
+    doc["clicks"] = click_counter;
+    // Create a temporary string for click_tracker for ArduinoJson
+    char tracker_str[numPoints + 1];
+    memcpy(tracker_str, click_tracker, numPoints);
+    tracker_str[numPoints] = '\0'; // Null-terminate
+    doc["click_pattern"] = tracker_str;
+  } else if (test_finished) {
+    doc["status"] = "Test Finished";
+    // Optionally include last test results here too
+    doc["points_shown"] = point_tracker +1;
+    doc["total_points"] = numPoints;
+    doc["clicks"] = click_counter;
+    char tracker_str[numPoints + 1];
+    memcpy(tracker_str, click_tracker, numPoints);
+    tracker_str[numPoints] = '\0';
+    doc["click_pattern"] = tracker_str;
+  } else {
+    doc["status"] = "System Ready";
+  }
+  serializeJson(doc, Serial);
+  Serial.println(); // Add a newline after JSON
 }
 
 void runTestLogic(unsigned long current_time) {
@@ -292,14 +335,17 @@ void runTestLogic(unsigned long current_time) {
   }
 
   if (duration > point_duration) {
+    // Check if we've completed a full cycle and end the test
+    if (point_tracker >= numPoints) {
+      endTest("Test completed successfully");
+      return;
+    }
+
     // If laser is still on turn it off before moving
     if (laser_state == HIGH) {
       digitalWrite(laser_pin, LOW);
       laser_state = LOW;
     }
-
-    // Update point_tracker to the next point
-    point_tracker++;
 
     int target_x = myPoints[point_tracker][0];
     int target_y = myPoints[point_tracker][1];
@@ -314,12 +360,9 @@ void runTestLogic(unsigned long current_time) {
 
     // Update timestamp
     timestamp = current_time;
-    
-    // Check if we've completed a full cycle and end the test
-    if (point_tracker >= numPoints) {
-      endTest("Test completed successfully");
-      return;
-    }
+
+    // Update point_tracker to the next point
+    point_tracker++;
   }
 
   // Button debounce and handling
@@ -374,3 +417,5 @@ void runTestLogic(unsigned long current_time) {
     }
   }
 }
+
+

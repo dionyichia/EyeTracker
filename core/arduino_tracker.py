@@ -401,7 +401,10 @@ class ArduinoTracker:
         try:
             while self.arduino.in_waiting > 0:
                 line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-                if line:
+                if line.startswith("{") and line.endswith("}"):
+                    json_data = json.loads(line)
+                    lines.append(json_data)
+                else:
                     lines.append(line)
         except serial.SerialException as e:
             print(f"Error reading data: {e}")
@@ -427,34 +430,30 @@ class ArduinoTracker:
             self.arduino.reset_output_buffer()
 
             # Send check test status command
-            self.arduino.write(self.CMD_CHECK_TEST_STATUS)
-            self.arduino.flush()
+            # self.arduino.write(self.CMD_CHECK_TEST_STATUS)
+            # self.arduino.flush()
 
             # Wait for response
-            start_time = time.time()
-            while time.time() - start_time < 2:
-                if self.arduino.in_waiting > 0:
-                    response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-                    print(response)
-                    if response.startswith("{") and response.endswith("}"):
-                        self.is_test_running = True
-                        try:
-                            data = json.loads(response)
-                            return {'test_status': 'Running', 'data': data}
-                        except json.JSONDecodeError:
-                            print(f"JSON decode error: {response}")
-                            return {'test_status': 'Running', 'data': None}
-                    elif self.RESP_SYSTEM_READY_TEST_ENDED in response:
-                        self.is_test_running = False
-                        return {'test_status': 'Finished'}
-                    
-                    elif self.RESP_SYSTEM_READY in response:
-                        self.is_test_running = False
-                        return {'test_status': 'Ready'}
-                    else:
-                        return {'test_status': 'Running'}
-
-            return {'test_status': "No response"}
+            # start_time = time.time()
+            # while time.time() - start_time < 2:
+            response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+            if response.startswith("{") and response.endswith("}"):
+                self.is_test_running = True
+                try:
+                    data = json.loads(response)
+                    return {'test_status': 'Running', 'data': data}
+                except json.JSONDecodeError:
+                    print(f"JSON decode error: {response}")
+                    return {'test_status': 'Running', 'data': None}
+            elif self.RESP_SYSTEM_READY_TEST_ENDED in response:
+                self.is_test_running = False
+                return {'test_status': 'Finished'}
+            
+            elif self.RESP_SYSTEM_READY in response:
+                self.is_test_running = False
+                return {'test_status': 'Ready'}
+            else:
+                return {'test_status': "No response"}
 
         except serial.SerialException as e:
             print(f"Ping error: {e}")
