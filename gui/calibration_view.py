@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
 
 from gui.widgets.video_widget import VideoWidget
-
+from gui.widgets.help_popup import HelpPopup
 
 class CalibrationView(QWidget):
     """View for calibrating and positioning the eye tracker"""
@@ -47,25 +47,40 @@ class CalibrationView(QWidget):
     def setup_ui(self):
         """Set up the user interface"""
         main_layout = QVBoxLayout(self)
+
+        # Title and Help Button Row
+        title_layout = QHBoxLayout()
         
         # Title
         title_label = QLabel("Eye Position Calibration")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
+        # main_layout.addWidget(title_label)
+
+        # Help button
+        help_button = QPushButton("Help")
+        help_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+                max-width: 60px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        help_button.clicked.connect(self.show_help)
         
-        # Instructions
-        instructions = (
-            "1. Position the subject so their eye is in the center of the frame\n"
-            "2. Adjust the threshold slider if needed\n"
-            "3. Adjust zoom and position the zoom box using mouse or arrow keys\n"
-            "4. Press 'L' or click 'Set Position' to lock the eye position\n"
-            "5. Click 'Start Test' when ready"
-        )
-        instr_label = QLabel(instructions)
-        instr_label.setStyleSheet("margin: 10px;")
-        instr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(instr_label)
+        title_layout.addStretch()
+        title_layout.addWidget(title_label)
+        title_layout.addStretch()
+        title_layout.addWidget(help_button)
+        
+        main_layout.addLayout(title_layout)
         
         # Main content area with video feed and controls
         content_layout = QHBoxLayout()
@@ -164,7 +179,12 @@ class CalibrationView(QWidget):
         
         # Add content to main layout
         main_layout.addLayout(content_layout)
-    
+
+    def show_help(self):
+        """Show the help popup for calibration"""
+        self.help_popup = HelpPopup(self, phase="calib")
+        self.help_popup.show()
+        
     def on_threshold_changed(self, value):
         """Handle threshold slider value change"""
         self.threshold_value = value

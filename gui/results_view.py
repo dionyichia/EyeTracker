@@ -78,9 +78,25 @@ class ResultsView(QWidget):
         
         # Update summary label
         total_points = results.get('points_shown', 0)
-        points_clicked = results.get('points_clicked', 0)
-        points_missed = results.get('points_missed', 0)
-        false_positives = results.get('false_positives', 0)
+        total_clicks = results.get('clicks', 0)
+        click_patten = results.get('click_pattern', None)
+        if not click_patten:
+            points_clicked = 0
+            points_missed = 0
+        else:
+            points_clicked = click_patten.count('1')
+            points_missed = click_patten.count('0')
+        num_times_look_away = results.get('out_of_thres_counter', 0)
+
+
+        # True positive - click with theres light
+        true_postiive =  points_clicked
+        # False positive - click when there is nothing 
+        false_positives = total_clicks - points_clicked
+        # True negative - no click when there is no light
+        # true_postiive =  
+        # False negative - no click when there is light
+        false_negative = points_missed
         
         # Calculate accuracy percentage
         accuracy = 0
@@ -100,6 +116,7 @@ class ResultsView(QWidget):
             ("Points detected", points_clicked),
             ("Points missed", points_missed),
             ("False button presses", false_positives),
+            ("Number of times looked away", num_times_look_away),
             ("Detection accuracy", f"{accuracy:.1f}%"),
         ]
         

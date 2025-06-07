@@ -134,12 +134,11 @@ class EyeTracker():
 
         # If darkest point position hover around a particular location for more than 5 seconds, or if "L" is pressed then lockpos
         if self.is_position_locked:
-                print("lock_mode_on running,  track_darkest_pt ", self.locked_position,  " darkest_point ", self.pupil_center_pos)
+                # print("lock_mode_on running,  track_darkest_pt ", self.locked_position,  " darkest_point ", self.pupil_center_pos)
                 if (self.locked_position == -1):
                     print("Calibration Error:, pupil position not calibrated!")
                 else:
                     self.distance_between_pupilpos_and_lockpos =  math.dist(self.locked_position, self.pupil_center_pos) 
-                    print("mathing, euclid dist: ", self.distance_between_pupilpos_and_lockpos)
                     frame = self.lockpos(frame, final_contours)
 
         test_frame = frame.copy()

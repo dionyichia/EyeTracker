@@ -1,6 +1,7 @@
 """
 Main application window for the EyeTracker application
 """
+from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
     QPushButton, QLabel, QMessageBox, QStatusBar, QHBoxLayout,
@@ -15,6 +16,7 @@ from gui.results_view import ResultsView
 from core.pupil_tracker import EyeTracker
 from core.arduino_tracker import ArduinoTracker
 
+from gui.widgets.help_popup import HelpPopup 
 
 class MainWindow(QMainWindow):
     """Main application window for the EyeTracker application"""
@@ -26,15 +28,15 @@ class MainWindow(QMainWindow):
         
         # Define application color palette
         self.app_colors = {
-            "primary": "#2c3e50",      # Dark blue for headers and main elements
-            "secondary": "#3498db",    # Lighter blue for accent elements
-            "success": "#2ecc71",      # Green for success actions
-            "warning": "#f39c12",      # Orange for warnings
-            "danger": "#e74c3c",       # Red for critical actions
-            "light": "#ecf0f1",        # Light gray for backgrounds
-            "dark": "#34495e",         # Darker shade for text
+            "primary": "#262e36",      # Dark blue for headers and main elements
+            "secondary": "#6c6d74",    # Lighter blue for accent elements
+            "success": "#b3b7ba",      # Green for success actions
+            "warning": "#fdb440",      # Orange for warnings
+            "danger": "#F20101",       # Red for critical actions
+            "light": "#d3d1ce",        # Light gray for backgrounds
+            "dark": "#090f15",         # Darker shade for text
             "white": "#ffffff",        # White for contrast elements
-            "black": "#000000"         # Black for text
+            "black": "#090f15"         # Black for text
         }
         
         self.setup_ui()
@@ -222,7 +224,7 @@ class MainWindow(QMainWindow):
         about_action = QAction("&About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
-    
+        
     def create_welcome_view(self):
         """Create the welcome view"""
         welcome_widget = QWidget()
@@ -245,17 +247,39 @@ class MainWindow(QMainWindow):
         welcome_layout = QVBoxLayout(welcome_container)
         welcome_layout.setSpacing(20)
         
+        # Welcome Header with help button
+        header_layout = QtWidgets.QHBoxLayout()
+        
         # Welcome label
-        welcome_label = QLabel("Welcome to EyeTracker")
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        welcome_label = QtWidgets.QLabel("Welcome to EyeTracker")
+        welcome_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         welcome_label.setStyleSheet("""
             font-size: 32px;
             font-weight: bold;
             color: #2c3e50;
             margin: 20px;
         """)
-        welcome_layout.addWidget(welcome_label)
+        header_layout.addWidget(welcome_label)
         
+        # Help button
+        help_button = QtWidgets.QPushButton("Help!")
+        help_button.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                font-size: 18px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        help_button.clicked.connect(self.show_help_popup)
+        header_layout.addWidget(help_button, alignment=QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight)
+        
+        welcome_layout.addLayout(header_layout)
         # Description label
         description = (
             "This application assists in administering the Humphrey Visual Field Test "
@@ -272,42 +296,7 @@ class MainWindow(QMainWindow):
             line-height: 1.5;
         """)
         welcome_layout.addWidget(desc_label)
-        
-        # Steps container
-        steps_container = QFrame()
-        steps_container.setStyleSheet("""
-            background-color: white;
-            border-radius: 6px;
-            padding: 15px;
-            margin: 10px 20px;
-        """)
-        steps_layout = QVBoxLayout(steps_container)
-        
-        # Steps header
-        steps_header = QLabel("Getting Started")
-        steps_header.setStyleSheet("""
-            font-size: 18px;
-            font-weight: bold;
-            color: #2c3e50;
-        """)
-        steps_layout.addWidget(steps_header)
-        
-        # Steps content
-        steps_content = QLabel(
-            "1. Click 'Connect Devices' to detect hardware\n"
-            "2. Calibrate the eye position using the calibration tools\n"
-            "3. Adjust sensitivity settings to match the patient\n"
-            "4. Run the visual field test with accurate tracking"
-        )
-        steps_content.setStyleSheet("""
-            font-size: 14px;
-            line-height: 1.8;
-            color: #34495e;
-            margin-left: 10px;
-        """)
-        steps_layout.addWidget(steps_content)
-        
-        welcome_layout.addWidget(steps_container)
+
         welcome_layout.addStretch()
         
         # Connect button
@@ -321,9 +310,13 @@ class MainWindow(QMainWindow):
         """)
         welcome_layout.addWidget(connect_button)
         
-        layout.addWidget(welcome_container)
-        
+        layout.addWidget(welcome_container)     
         return welcome_widget
+
+    def show_help_popup(self):
+        """Show the help popup"""
+        popup = HelpPopup(self)
+        popup.show()
     
     def setup_connections(self):
         """Set up signal/slot connections"""

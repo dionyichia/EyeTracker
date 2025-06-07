@@ -12,10 +12,10 @@ const int laser_pin = 13;
 // Command byte constants (single-byte for efficiency)
 const byte CMD_START_TEST = 0x01;      // Start test
 const byte CMD_END_TEST = 0x02;        // End test
-const byte CMD_PING = 0x05;            // Ping signal
-const byte CMD_WITHIN_THRESHOLD = 0x06;  // Within threshold signal
-const byte CMD_OUT_OF_THRESHOLD = 0x07;  // Out of threshold signal
-const byte CMD_CHECK_TEST_STATUS = 0x08;  // Check test status: Ready, Running, Ended
+const byte CMD_PING = 0x03;            // Ping signal
+const byte CMD_WITHIN_THRESHOLD = 0x04;  // Within threshold signal
+const byte CMD_OUT_OF_THRESHOLD = 0x05;  // Out of threshold signal
+const byte CMD_TEST_RESULTS = 0x06;  // Get test results
 
 // const char CMD_START_TEST = '1';      // Start test
 // const char CMD_END_TEST = '2';        // End test
@@ -33,7 +33,7 @@ const int laser_duration = 2000; // duration for laser to be turned on
 const int PRE_FIRE_DELAY = 500;    // 0.5 second delay before firing
 const int buzzer_duration = 1000; // Buzzer duration in milliseconds
 const unsigned long DEBOUNCE_DELAY = 50; 
-const int PROGRESS_INTERVAL = 100; // Send progress report every 100ms
+const int PROGRESS_INTERVAL = 300; // Send progress report every 100ms
 
 // Servo movement parameters
 const float SERVO_STEPS = 1;           
@@ -46,7 +46,7 @@ int laser_state = LOW;
 int laser_flag = LOW;
 int buzzer_state = LOW;
 int led_state = LOW;
-int point_tracker = 0;
+int point_tracker = -1;
 
 // Timing variables
 unsigned long timestamp = 0;
@@ -66,6 +66,7 @@ bool test_running = false;
 bool test_finished = false;
 unsigned long test_start_time = 0;
 const unsigned long TEST_TIMEOUT = 300000; // 5 minutes timeout
+int out_of_thres_counter = 0;
 
 // Servo objects
 Servo myservo1;
@@ -113,6 +114,7 @@ void loop() {
       case CMD_START_TEST:
         if (!test_running) {
           startTest(); // This function already prints "Test starting..."
+          Serial.println(point_tracker);
         } else {
           Serial.println("System busy: Test already running");
         }
@@ -125,9 +127,16 @@ void loop() {
         break;
         
       case CMD_PING:
-        Serial.println("System Online");
+        if (test_running) {
+          Serial.println("Test Running");
+        } else if (test_finished) {
+          Serial.println("Test Ended");
+        } else {
+          Serial.println("System Online");
+        }
         break;
         
+      
       case CMD_WITHIN_THRESHOLD:
         // Handle within threshold command
         digitalWrite(led_pin, LOW);
@@ -137,36 +146,31 @@ void loop() {
         
       case CMD_OUT_OF_THRESHOLD:
         // Handle out of threshold command
+        out_of_thres_counter += 1;
         digitalWrite(led_pin, HIGH);
         led_state = HIGH;
         // Serial.write(RESP_ACK);  // Send immediate acknowledgment
         break;
 
-      case CMD_CHECK_TEST_STATUS:
+      // This is extra, during test run, arduino automatically sends updates every 300ms without request
+      case CMD_TEST_RESULTS:
         { // Scope for StaticJsonDocument
           JsonDocument doc; // Increased size slightly for safety
           if (test_running) {
-            doc["status"] = "Test Running";
-            doc["points_shown"] = point_tracker + 1; // +1 because point_tracker is 0-indexed
-            doc["total_points"] = numPoints;
-            doc["clicks"] = click_counter;
-            // Create a temporary string for click_tracker for ArduinoJson
-            char tracker_str[numPoints + 1];
-            memcpy(tracker_str, click_tracker, numPoints);
-            tracker_str[numPoints] = '\0'; // Null-terminate
-            doc["click_pattern"] = tracker_str;
+            doc["test_status"] = "Test Running";
           } else if (test_finished) {
-            doc["status"] = "Test Finished";
+            doc["test_status"] = "Test Finished";
             // Optionally include last test results here too
-            doc["points_shown"] = point_tracker +1;
+            doc["points_shown"] = point_tracker + 1;
             doc["total_points"] = numPoints;
             doc["clicks"] = click_counter;
             char tracker_str[numPoints + 1];
             memcpy(tracker_str, click_tracker, numPoints);
             tracker_str[numPoints] = '\0';
             doc["click_pattern"] = tracker_str;
+            doc["out_of_thres_counter"] = out_of_thres_counter;
           } else {
-            doc["status"] = "System Ready";
+            doc["test_status"] = "System Ready";
           }
           serializeJson(doc, Serial);
           Serial.println(); // Add a newline after JSON
@@ -208,8 +212,9 @@ void startTest() {
   timestamp = millis();
   
   // Reset all counters and states
-  point_tracker = 0;
+  point_tracker = -1;
   click_counter = 0;
+  out_of_thres_counter = 0;
   
   for (int i = 0; i < numPoints; i++) {
     click_tracker[i] = '0';
@@ -251,6 +256,8 @@ void endTest(String reason) {
   Serial.println(click_counter);
   Serial.print("Click tracker: ");
   Serial.println(click_tracker);
+  Serial.print("Out-of-thres tracker: ");
+  Serial.println(out_of_thres_counter);
   
   Serial.println("System ready");
 }
@@ -297,6 +304,7 @@ void smoothServoMove(int target_servo1, int target_servo2) {
 void printTestStatus() {
   JsonDocument doc; // Increased size slightly for safety
   if (test_running) {
+    doc["test_status"] = "Test Running";
     doc["points_shown"] = point_tracker + 1; // +1 because point_tracker is 0-indexed
     doc["total_points"] = numPoints;
     doc["clicks"] = click_counter;
@@ -306,9 +314,9 @@ void printTestStatus() {
     tracker_str[numPoints] = '\0'; // Null-terminate
     doc["click_pattern"] = tracker_str;
   } else if (test_finished) {
-    doc["status"] = "Test Finished";
+    doc["test_status"] = "Test Finished";
     // Optionally include last test results here too
-    doc["points_shown"] = point_tracker +1;
+    doc["points_shown"] = point_tracker + 1;
     doc["total_points"] = numPoints;
     doc["clicks"] = click_counter;
     char tracker_str[numPoints + 1];
@@ -316,7 +324,7 @@ void printTestStatus() {
     tracker_str[numPoints] = '\0';
     doc["click_pattern"] = tracker_str;
   } else {
-    doc["status"] = "System Ready";
+    doc["test_status"] = "System Ready";
   }
   serializeJson(doc, Serial);
   Serial.println(); // Add a newline after JSON
@@ -335,6 +343,9 @@ void runTestLogic(unsigned long current_time) {
   }
 
   if (duration > point_duration) {
+    // Update point_tracker to the next point
+    point_tracker++;
+
     // Check if we've completed a full cycle and end the test
     if (point_tracker >= numPoints) {
       endTest("Test completed successfully");
@@ -360,9 +371,6 @@ void runTestLogic(unsigned long current_time) {
 
     // Update timestamp
     timestamp = current_time;
-
-    // Update point_tracker to the next point
-    point_tracker++;
   }
 
   // Button debounce and handling

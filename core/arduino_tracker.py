@@ -10,19 +10,18 @@ class ArduinoTracker:
     # Command bytes for efficient serial communication (single-byte)
     CMD_START_TEST = b'\x01'      # Start test (0x01)
     CMD_END_TEST = b'\x02'        # End test (0x02)
-    CMD_PING = b'\x05'            # Ping signal to check connection (0x05)
-    CMD_WITHIN_THRESHOLD = b'\x06'  # Within threshold signal (0x06)
-    CMD_OUT_OF_THRESHOLD = b'\x07'  # Out of threshold signal (0x07)
-    CMD_CHECK_TEST_STATUS = b'\x08'  # Check test status: Ready, Running, Ended (0x08)
+    CMD_PING = b'\x03'            # Ping signal to check connection (0x05)
+    CMD_WITHIN_THRESHOLD = b'\x04'  # Within threshold signal (0x06)
+    CMD_OUT_OF_THRESHOLD = b'\x05'  # Out of threshold signal (0x07)
+    CMD_TEST_RESULTS = b'\x06'  # Check test status: Ready, Running, Ended (0x08)
     
     # Response codes from Arduino
     RESP_ACK = 'O'           # Command acknowledged
     RESP_TEST_START = "Test starting..."
     RESP_TEST_END = "TEST_END"
-    RESP_SYSTEM_ONLINE = "System Online"
-    RESP_SYSTEM_READY = "System ready"
-    RESP_SYSTEM_READY_TEST_ENDED = "System ready: Test finished"
-    RESP_SYSTEM_NOT_READY = "Not ready: Test running"
+    RESP_SYSTEM_ONLINE = "Online"
+    RESP_SYSTEM_READY = "Ready"
+    RESP_SYSTEM_NOT_READY = "Running"
     
     def __init__(self, auto_connect=True, baud_rate=115200, timeout=2, on_detect_callback=None, port_identifiers=None):
         """Initialize the Arduino tracker.
@@ -137,13 +136,14 @@ class ArduinoTracker:
             time.sleep(2)  # Allow time for Arduino reset
             
             # Test connection by pinging
-            if self.ping():
-                print("Connection verified with ping")
-                return True
-            else:
+            if not self.ping():
                 print("Failed to verify connection with ping")
                 self.disconnect()
                 return False
+        
+            else:
+                print("Connection verified with ping")
+                return True
                 
         except serial.SerialException as e:
             print(f"Connection error: {e}")
@@ -173,8 +173,7 @@ class ArduinoTracker:
             while time.time() - start_time < 2:
                 if self.arduino.in_waiting > 0:
                     response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-                    if self.RESP_SYSTEM_ONLINE in response:
-                        return True
+                    return response
                 time.sleep(0.1)
                 
             return False
@@ -258,13 +257,14 @@ class ArduinoTracker:
             
         try:
             # Ping to check test status and system state
-            status = self.get_test_status()
-            print("status ", status)
-            if self.RESP_SYSTEM_NOT_READY in status['test_status']:
+            status = self.ping()
+            print("ping status ", status)
+            if self.RESP_SYSTEM_NOT_READY in status:
                 self.stop_test()
         
             # Clear input buffer
             self.arduino.reset_input_buffer()
+            self.arduino.reset_output_buffer()
             
             # Send start test command
             self.arduino.write(self.CMD_START_TEST)
@@ -285,7 +285,7 @@ class ArduinoTracker:
 
                 time.sleep(0.1)
                 
-            print("No response received for start test command")
+            print("No or wrong response received for start test command")
             return False
             
         except serial.SerialException as e:
@@ -342,49 +342,50 @@ class ArduinoTracker:
         if not self.is_connected():
             print("Cannot get test results: Not connected to Arduino")
             return None
-            
+        
         # If we already have results, return them
         if self.test_results:
             return self.test_results
+        
+        try:
+            # Ping to check test status and system state
+            status = self.ping()
+            print("status ", status)
+            if self.RESP_SYSTEM_NOT_READY in status:
+                print("System not ready!")
+                return None
+            elif self.RESP_SYSTEM_ONLINE in status: 
+                print("No test initiated!")
+                return None              
+        
+            # Clear input buffer
+            self.arduino.reset_input_buffer()
             
-        results = {
-            'reason': None,
-            'click_counter': None,
-            'click_tracker': None
-        }
+            # Send start test command
+            self.arduino.write(self.CMD_TEST_RESULTS)
+            self.arduino.flush()
         
-        end_marker_found = False
-        
-        # Wait for results up to timeout
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            if self.arduino.in_waiting > 0:
-                line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-                print(f"Results line: {line}")
-                
-                # Check for test end marker
-                if self.RESP_TEST_END in line:
-                    end_marker_found = True
-                    continue
-                    
-                # Parse result data
-                if end_marker_found:
-                    if line.startswith("Reason:"):
-                        results['reason'] = line[7:].strip()
-                    elif line.startswith("Click counter:"):
+            # Wait for results up to timeout
+            start_time = time.time()
+            while time.time() - start_time < timeout:
+                if self.arduino.in_waiting > 0:
+                    line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                    print(f"Results line: {line}")
+
+                    if line.startswith("{") and line.endswith("}"):
                         try:
-                            results['click_counter'] = int(line[14:].strip())
-                        except ValueError:
-                            results['click_counter'] = -1
-                    elif line.startswith("Click tracker:"):
-                        results['click_tracker'] = line[14:].strip()
-                    elif self.RESP_SYSTEM_ONLINE in line:
-                        # End of results
-                        self.test_results = results
-                        return results
-                        
-            time.sleep(0.1)
-            
+                            data = json.loads(line)
+                            return data
+                        except json.JSONDecodeError:
+                            print(f"JSON decode error: {line}")
+                            return None
+                            
+                time.sleep(0.1)
+
+        except serial.SerialException as e:
+            print(f"Error stopping test: {e}")
+            return None
+
         print(f"Timed out waiting for test results after {timeout} seconds")
         return None
 
@@ -417,43 +418,57 @@ class ArduinoTracker:
         Returns:
             bool: True if responding, False otherwise
         """
-        return self.ping()
-    
+        if not self.ping():
+            return False
+        else:
+            return True
+        
     def get_test_status(self):
         """Check if test is still ongoing, and retrieve current test info."""
         if not self.is_connected():
             return {'test_status': 'Not connected'}
 
         try:
-            # Clear buffers
+            # Read all available lines first
+            lines = []
+            while self.arduino.in_waiting > 0:
+                line = self.arduino.readline().decode('utf-8', errors='ignore').strip()
+                if line:  # Only add non-empty lines
+                    lines.append(line)
+            
+            # NOW clear the buffers after reading everything
             self.arduino.reset_input_buffer()
             self.arduino.reset_output_buffer()
-
-            # Send check test status command
-            # self.arduino.write(self.CMD_CHECK_TEST_STATUS)
-            # self.arduino.flush()
-
-            # Wait for response
-            # start_time = time.time()
-            # while time.time() - start_time < 2:
-            response = self.arduino.readline().decode('utf-8', errors='ignore').strip()
-            if response.startswith("{") and response.endswith("}"):
-                self.is_test_running = True
-                try:
-                    data = json.loads(response)
-                    return {'test_status': 'Running', 'data': data}
-                except json.JSONDecodeError:
-                    print(f"JSON decode error: {response}")
-                    return {'test_status': 'Running', 'data': None}
-            elif self.RESP_SYSTEM_READY_TEST_ENDED in response:
+            
+            if not lines:
+                return {'test_status': "No response"}
+            
+            # print("lines:", lines)
+                
+            # Process lines - prioritize TEST_END messages
+            test_end_found = False
+            latest_status = None
+            
+            for line in lines:
+                if self.RESP_TEST_END in line:
+                    test_end_found = True
+                elif self.RESP_SYSTEM_READY in line:
+                    latest_status = {'test_status': 'Ready'}
+                elif line.startswith("{") and line.endswith("}"):
+                    try:
+                        data = json.loads(line)
+                        latest_status = data
+                        print("data from get test status ", data)
+                    except json.JSONDecodeError:
+                        print(f"JSON decode error: {line}")
+            
+            # Return TEST_END status if found, otherwise return latest status
+            if test_end_found:
                 self.is_test_running = False
                 return {'test_status': 'Finished'}
             
-            elif self.RESP_SYSTEM_READY in response:
-                self.is_test_running = False
-                return {'test_status': 'Ready'}
-            else:
-                return {'test_status': "No response"}
+            print('latest_status', latest_status)
+            return latest_status or {'test_status': "No valid response"}
 
         except serial.SerialException as e:
             print(f"Ping error: {e}")
