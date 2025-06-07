@@ -120,7 +120,7 @@ class HelpPopup(QtWidgets.QWidget):
                 <p><b>Step 2:</b> Connect your eye tracking camera</p>
                 <p><b>Step 3:</b> Click "Connect Devices" to initialize hardware</p>
                 
-                <h3>Calibration</h3>
+                <h3>Calibration</h3> 
                 <p>• Position the patient comfortably in front of the screen</p>
                 <p>• Use the calibration view to set up eye tracking</p>
                 <p>• Adjust sensitivity settings for optimal tracking</p>
