@@ -161,7 +161,7 @@ void loop() {
           } else if (test_finished) {
             doc["test_status"] = "Test Finished";
             // Optionally include last test results here too
-            doc["points_shown"] = point_tracker + 1;
+            doc["points_shown"] = point_tracker; // Point tracker would have incremeted to total points + 1, before breaking when point_tracker >= numPoints condiiton is checked. Since, point trakcer is 0-indexed, need + 1 here.
             doc["total_points"] = numPoints;
             doc["clicks"] = click_counter;
             char tracker_str[numPoints + 1];

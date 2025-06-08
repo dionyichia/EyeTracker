@@ -1,14 +1,13 @@
 import cv2
 import numpy as np
-import random
 import math
 import tkinter as tk
 import os
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 import time
-from core.arduino_tracker import ArduinoTracker
-from core.pupil_tracker_utils import EyeTrackerUtils
+from app.core.arduino_tracker import ArduinoTracker
+from app.core.pupil_tracker_utils import EyeTrackerUtils
 
 class EyeTracker():
     """Class for tracking eye pupil position using OpenCV"""

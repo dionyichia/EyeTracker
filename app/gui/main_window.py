@@ -10,13 +10,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QAction, QKeySequence, QFont, QPixmap, QGuiApplication
 
-from gui.calibration_view import CalibrationView
-from gui.test_view import TestView
-from gui.results_view import ResultsView
-from core.pupil_tracker import EyeTracker
-from core.arduino_tracker import ArduinoTracker
+from app.gui.calibration_view import CalibrationView
+from app.gui.test_view import TestView
+from app.gui.results_view import ResultsView
+from app.core.pupil_tracker import EyeTracker
+from app.core.arduino_tracker import ArduinoTracker
 
-from gui.widgets.help_popup import HelpPopup 
+from app.gui.widgets.help_popup import HelpPopup 
 
 class MainWindow(QMainWindow):
     """Main application window for the EyeTracker application"""

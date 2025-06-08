@@ -8,8 +8,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
 
-from gui.widgets.video_widget import VideoWidget
-from gui.widgets.help_popup import HelpPopup
+from app.gui.widgets.video_widget import VideoWidget
+from app.gui.widgets.help_popup import HelpPopup
 
 class CalibrationView(QWidget):
     """View for calibrating and positioning the eye tracker"""

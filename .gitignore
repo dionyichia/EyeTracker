@@ -13,4 +13,25 @@ __pycache__/
 .Python
 env/
 venv/
-.python-version
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+config.local.py
+*.log

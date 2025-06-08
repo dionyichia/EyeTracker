@@ -8,10 +8,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
 
-from gui.widgets.video_widget import VideoWidget
-from gui.widgets.help_popup import HelpPopup
-import json
-
+from app.gui.widgets.video_widget import VideoWidget
+from app.gui.widgets.help_popup import HelpPopup
 
 class TestView(QWidget):
     """View for running the visual field test"""

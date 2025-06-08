@@ -5,9 +5,9 @@ import sys
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QCoreApplication
 
-from gui.main_window import MainWindow
-from utils.config import load_config
-from utils.logger import setup_logger
+from app.gui.main_window import MainWindow
+from app.utils.config import load_config
+from app.utils.logger import setup_logger
 
 
 def main():
