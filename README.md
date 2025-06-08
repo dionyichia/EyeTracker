@@ -10,7 +10,7 @@ A professional eye tracking system for visual field testing with hardware integr
 - Webcam or integrated camera
 
 ### Software Installation
-1. Download the latest release from [Releases](https://github.com/yourusername/EyeTracker/releases)
+1. Download the latest release from [Releases](https://github.com/dionyichia/visual_field_test/releases)
 2. Extract the downloaded file
 3. Run `EyeTracker.exe` (Windows) or `EyeTracker.app` (macOS)
 
