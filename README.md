@@ -1,74 +1,95 @@
-# EyeTracker
+# EyeTracker - Visual Field Test System
 
-A lightweight, robust eye-tracking system used as part of the pre-assessment preparation for patients undergoing the Humphrey Visual Field Test.
+A professional eye tracking system for visual field testing with hardware integration.
 
-## Installation
+## 🚀 Quick Start
 
-Requirements:
-- Python 3.x
-- Necessary Python libraries (listed below)
-- Arduino IDE
-- An Ardunio
-- Necessary Arduino modules (listed below)
+### Hardware Requirements
+- Eye tracking hardware (see hardware setup guide)
+- Arduino-compatible device
+- Webcam or integrated camera
 
-Packages
-- numpy
-- opencv
+### Software Installation
+1. Download the latest release from [Releases](https://github.com/yourusername/EyeTracker/releases)
+2. Extract the downloaded file
+3. Run `EyeTracker.exe` (Windows) or `EyeTracker.app` (macOS)
 
-### Setup Instructions
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/your-repo/EyeTracker.git
-   cd EyeTracker
+### Hardware Setup
+1. Connect your Arduino device
+2. Upload the provided Arduino sketch (`arduino/eyetracker_arduino.ino`)
+3. Follow the [Hardware Setup Guide](docs/hardware_setup.md) for detailed instructions
 
-2. Install the required Python packages:
-   ```bash
-   pip install numpy opencv-python
+## 📋 System Requirements
 
-3. Upload the Arduino script using the Arduino IDE.
+### Windows
+- Windows 10 or later
+- 4GB RAM minimum, 8GB recommended
+- USB ports for hardware connections
 
-### Usage
-1. Run the arduino script from the arduino IDE
-2. Run the script, using run "python .\OrloskyPupilDetector.py" from terminal. 
+### macOS
+- macOS 10.14 or later
+- 4GB RAM minimum, 8GB recommended
+- USB ports for hardware connections
 
-A test video (eye_test.mp4) is included in the root directory for testing. 
+### Linux
+- Ubuntu 18.04+ or equivalent
+- 4GB RAM minimum, 8GB recommended
+- USB ports for hardware connections
 
-**Change the input_method under select_video function, to 1 and rerun script. Remember to change zoom factor.
+## 🔧 For Developers
 
-Assumptions
-- Works best with 640x480 videos. Images will be cropped to size equally horizontally/vertically if aspect ratio is not 4:3.
-- The image must be that of the entire eye. Dark regions in the corners of the image (e.g. VR display lens borders) should be cropped. 
+### Building from Source
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/EyeTracker.git
+cd EyeTracker
 
-### Booth Diagram:
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-### Circuit Diagram:
+# Install dependencies
+pip install -r requirements.txt
 
-## Algorithim Explaination
+# Run the application
+python main.py
 
-Eye Tracking
-1. Sparse Sampling for darkest point in the image.
-2. Binary Thresholding to idenitfy pupil.
-3. Cascaded Thresholding with three different threshold values.
-4. Fit and elispce to the the pupil in the thresholded images
-5. Select best of three thresholded images
-6. Find all contour points of the thresholded pupil
-7. Denoising contour points to include only keep those that point inwards. 
-    - This is important as the shape formed by the contour points may contain anormalies. These arise when there is an reflection or eyelash obstructing the pupil
-8. Fit a eslipce to the final contour points in the image
+# Build executable
+python scripts/build.py
+```
 
-Confidence-based Correction
-- A filter to reduce switching between binary threshold value. This reduces the spasms in the final eclipse drawn.
-1. If the best binary threshold value used in the current frame is different from the one used in the previous frame, check whether the difference in the 'goodness' of the thresholded surpasses a confidence margin. 
-2. If yes, switch to new threshold value, else, default to previous threshold value
+### Project Structure
+```
+EyeTracker/
+├── core/           # Core tracking algorithms
+├── gui/            # User interface components
+├── arduino/        # Arduino code and integration
+├── assets/         # Application assets
+├── utils/          # Utility functions
+└── main.py         # Application entry point
+```
 
-Lock Pupil Position Function
-- A function to save a pupil's relative position in the current frame and signal if the pupil exceeds a threshold value for euclidian distance in subseequent frames (lockpos threshold),
+## 📖 Documentation
+- [Installation Guide](docs/installation.md)
+- [Hardware Setup](docs/hardware_setup.md)
+- [User Guide](docs/user_guide.md)
+- [How it works](docs/how_it_works.md)
 
-Haptic Feedback Tracker
-- A script to send signals to the arduino if pupil exceeds euclid threshold. 
+## 🐛 Troubleshooting
 
+### Common Issues
+1. **Camera not detected**: Ensure camera permissions are granted
+2. **Arduino connection failed**: Check USB connection and driver installation
+3. **Application won't start**: Run as administrator or check antivirus settings
 
-## Citations
-This project was adapted from Jason Orlosky's Eye Tracker [https://github.com/JEOresearch/EyeTracker/]
+## 📞 Support
+- Create an issue on [GitHub Issues](https://github.com/yourusername/EyeTracker/issues)
+- Check our [FAQ](docs/faq.md)
 
-Algorithm details are further explained [here](https://www.youtube.com/watch?v=bL92JUBG8xw).
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+- OpenCV community
+- PyQt6 developers
+- Arduino community
