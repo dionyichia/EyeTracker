@@ -10,10 +10,10 @@ class ArduinoTracker:
     # Command bytes for efficient serial communication (single-byte)
     CMD_START_TEST = b'\x01'      # Start test (0x01)
     CMD_END_TEST = b'\x02'        # End test (0x02)
-    CMD_PING = b'\x03'            # Ping signal to check connection (0x05)
-    CMD_WITHIN_THRESHOLD = b'\x04'  # Within threshold signal (0x06)
-    CMD_OUT_OF_THRESHOLD = b'\x05'  # Out of threshold signal (0x07)
-    CMD_TEST_RESULTS = b'\x06'  # Check test status: Ready, Running, Ended (0x08)
+    CMD_PING = b'\x03'            # Ping signal to check connection (0x03)
+    CMD_WITHIN_THRESHOLD = b'\x04'  # Within threshold signal (0x04)
+    CMD_OUT_OF_THRESHOLD = b'\x05'  # Out of threshold signal (0x05)
+    CMD_TEST_RESULTS = b'\x06'  # Check test status: Ready, Running, Ended (0x06)
     
     # Response codes from Arduino
     RESP_ACK = 'O'           # Command acknowledged
@@ -216,7 +216,13 @@ class ArduinoTracker:
             
         # Convert command to bytes if it's a string
         if isinstance(command, str):
-            command = command.encode('utf-8')
+            if command == 'H':
+                command = self.CMD_OUT_OF_THRESHOLD
+            elif command == 'L':
+                command = self.CMD_WITHIN_THRESHOLD
+            else:
+                print(f"Unknown command sent: {command}")
+                return 0
             
         try:
             self.arduino.write(command)

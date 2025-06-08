@@ -147,10 +147,11 @@ class HelpPopup(QtWidgets.QWidget):
                 <p><b>Step 7:</b> Click 'Start Test' when calibration is complete.</p>
                 
                 <h3>Tips</h3>
-                <p>• Ensure good lighting on the subject's face</p>
-                <p>• The eye should be clearly visible and centered</p>
-                <p>• Adjust threshold if eye detection is inconsistent</p>
-                <p>• Use zoom for precise positioning</p>
+                <p>• Ensure good lighting on the subject's face and pupil</p>
+                <p>• The eye should be clearly visible and centered, ensure that the pupil only takes up 20%\ of the screen </p>
+                <p>• Use 'up', 'down', 'left', 'right' keys to shift zoom box, 'Enter' to select zoom and 'Escape' to reset zoom</p>
+                <p>• Use 'L' to set position of pupil</p>
+                <p>• Adjust threshold slider to increase or decrease sensitivity to pupil movement</p>
             """,
             
             "test": """
@@ -163,7 +164,7 @@ class HelpPopup(QtWidgets.QWidget):
                 
                 <h3>What to Expect</h3>
                 <p>• The test will track your eye movements</p>
-                <p>• You may see visual stimuli to follow</p>
+                <p>• You will see visual stimuli to follow</p>
                 <p>• The test duration varies by protocol</p>
             """,
             

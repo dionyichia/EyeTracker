@@ -3,7 +3,7 @@
 
 // Pin definitions
 const int buzzer_pin = 3;
-const int button_pin = 5;
+const int button_pin = 5;   // Active high, connect other end into ground
 const int servo1 = 9;       // first servo, grey wire
 const int servo2 = 10;      // second servo, blue wire
 const int led_pin = 12;
@@ -22,7 +22,7 @@ const byte CMD_TEST_RESULTS = 0x06;  // Get test results
 // const char CMD_PING = '3';            // Ping signal
 // const char CMD_WITHIN_THRESHOLD = '4';  // Within threshold signal
 // const char CMD_OUT_OF_THRESHOLD = '5';  // Out of threshold signal
-// const char CMD_CHECK_TEST_STATUS = '6';  // Check test status: Ready, Running, Ended
+// const char CMD_TEST_RESULTS = '6';  // Check test status: Ready, Running, Ended
 
 // Response byte constants
 const char RESP_ACK = 'O';             // Command acknowledged
@@ -379,14 +379,17 @@ void runTestLogic(unsigned long current_time) {
       button_state = reading;
     
       if (button_state == LOW) {
+        // Serial.println("Pressed!");
         if (laser_state == LOW) {
           // Wrong press, turn on buzzer
+          // Serial.println("Wrong press!");
           digitalWrite(buzzer_pin, HIGH);
           buzzer_state = HIGH;
           buzzer_start_time = current_time;
         } 
         else {
           // Turn off laser
+          // Serial.println("Right press!");
           digitalWrite(laser_pin, LOW);
           laser_state = LOW;
           laser_flag = LOW;

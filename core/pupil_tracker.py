@@ -16,10 +16,6 @@ class EyeTracker():
     # Video input config params, for debugging and demonstration
     CAMERA_FEED = 0
     TEST_VIDEO = 1
-
-    # Command constants (single-byte for efficiency)
-    CMD_WITHIN_THRESHOLD = b'\x06'  # Within threshold signal (0x06)
-    CMD_OUT_OF_THRESHOLD = b'\x07'  # Out of threshold signal (0x07)
     
     def __init__(self, arduino_tracker=None):
         """Initialize the eye tracker"""
@@ -43,7 +39,7 @@ class EyeTracker():
         self.distance_between_pupilpos_and_lockpos = 0 # Tracks the distance between the pupil pos in the current frame with the initial calibrated position
         self.is_pupil_pos_within_threshold = True # True if the distance between the pupil pos current frame within the set threshold. i.e. False if too far, user is looking away
         self.prev_command = 'L'
-        
+
         self.prev_threshold_index = 0 # Tracks the grayscale threshold used. There are 3 grayscale thresholds used, for differing degree of strictness. 1 - light, 2 - medium, 3 - heavy (strict). The threshold used is dynamically determined to give best fitted pupil.
         
         # Initialize camera
@@ -276,7 +272,7 @@ class EyeTracker():
             # Pupil is outside threshold - draw red ellipse
             self.is_pupil_pos_within_threshold = False
             frame = EyeTrackerUtils.fit_and_draw_ellipses(frame, final_contours[0], (255, 0, 0))
-            command = self.CMD_OUT_OF_THRESHOLD
+            command = 'H'
 
             
             # Send command to Arduino if tracker is available AND if command is different from previous command (for efficiency) 
@@ -299,7 +295,7 @@ class EyeTracker():
             # Pupil is within threshold - draw green ellipse
             self.is_pupil_pos_within_threshold = True
             frame = EyeTrackerUtils.fit_and_draw_ellipses(frame, final_contours[0], (0, 255, 0))
-            command = self.CMD_WITHIN_THRESHOLD
+            command = 'L'
             
             # Send command to Arduino if tracker is available
             if self.tracker and self.tracker.is_connected() and command != self.prev_command:

@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QFrame
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon, QAction, QKeySequence, QFont, QPixmap
+from PyQt6.QtGui import QIcon, QAction, QKeySequence, QFont, QPixmap, QGuiApplication
 
 from gui.calibration_view import CalibrationView
 from gui.test_view import TestView
@@ -25,6 +25,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         
         self.config = config
+
+        # Set Minimum Window Size
+        screen_size = QGuiApplication.primaryScreen().availableGeometry()
+        width = int(screen_size.width() * 0.9)
+        height = int(screen_size.height() * 0.9)
+        self.resize(width, height)
+
+        # self.setMinimumSize(WIDTH, HEIGHT)
         
         # Define application color palette
         self.app_colors = {
@@ -59,7 +67,6 @@ class MainWindow(QMainWindow):
         """Set up the user interface"""
         # Set window properties
         self.setWindowTitle("EyeTracker - Visual Field Test Assistant")
-        self.setMinimumSize(1000, 700)
         
         # Set application stylesheet
         self.setStyleSheet(f"""

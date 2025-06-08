@@ -82,8 +82,6 @@ class TestView(QWidget):
         title_layout.addStretch()
         title_layout.addWidget(help_button)
         
-        main_layout.addLayout(title_layout)
-        
         # Main content area with video feed and status
         content_layout = QHBoxLayout()
         
@@ -94,6 +92,8 @@ class TestView(QWidget):
         
         # Test status and controls
         status_layout = QVBoxLayout()
+
+        status_layout.addLayout(title_layout)
         
         # Test progress
         progress_group = QGroupBox("Test Progress")

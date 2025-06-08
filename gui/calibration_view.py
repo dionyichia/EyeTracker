@@ -3,7 +3,7 @@ Calibration view for the EyeTracker application
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QSlider, QGroupBox
+    QPushButton, QSlider, QGroupBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
@@ -80,8 +80,6 @@ class CalibrationView(QWidget):
         title_layout.addStretch()
         title_layout.addWidget(help_button)
         
-        main_layout.addLayout(title_layout)
-        
         # Main content area with video feed and controls
         content_layout = QHBoxLayout()
         
@@ -99,28 +97,18 @@ class CalibrationView(QWidget):
         
         # Controls
         controls_layout = QVBoxLayout()
-        
-        # Threshold control
-        threshold_group = QGroupBox("Threshold Adjustment")
-        threshold_layout = QVBoxLayout(threshold_group)
-        
-        threshold_label = QLabel("Adjust pupil detection threshold:")
-        threshold_layout.addWidget(threshold_label)
-        
-        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
-        self.threshold_slider.setMinimum(0)
-        self.threshold_slider.setMaximum(100)
-        self.threshold_slider.setValue(self.threshold_value)
-        self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
-        threshold_layout.addWidget(self.threshold_slider)
-        
-        self.threshold_value_label = QLabel(f"Current: {self.threshold_value}")
-        threshold_layout.addWidget(self.threshold_value_label)
-        
-        controls_layout.addWidget(threshold_group)
 
-        # Zoom control
+        controls_layout.addLayout(title_layout)
+
+                # Zoom control
         zoom_group = QGroupBox("Zoom Adjustment")
+        zoom_group.setStyleSheet("""
+            QGroupBox::title {
+                padding-top: 5px;  
+                margin-left: 15px;
+                margin-right: 15px;
+            }
+        """)
         zoom_layout = QVBoxLayout(zoom_group)
         
         zoom_label = QLabel("Adjust zoom factor:")
@@ -138,11 +126,15 @@ class CalibrationView(QWidget):
         
         zoom_buttons_layout = QHBoxLayout()
         self.set_zoom_btn = QPushButton("Set Zoom")
+        self.set_zoom_btn.setMinimumHeight(20)
+        self.set_zoom_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.set_zoom_btn.clicked.connect(self.set_zoom)
         self.set_zoom_btn.setEnabled(False)  # Enabled when zoom factor > 1
         zoom_buttons_layout.addWidget(self.set_zoom_btn)
         
         self.reset_zoom_btn = QPushButton("Reset Zoom")
+        self.reset_zoom_btn.setMinimumHeight(20)
+        self.reset_zoom_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.reset_zoom_btn.clicked.connect(self.reset_zoom)
         self.reset_zoom_btn.setEnabled(False)  # Enabled after zoom is applied
         zoom_buttons_layout.addWidget(self.reset_zoom_btn)
@@ -151,8 +143,41 @@ class CalibrationView(QWidget):
         
         controls_layout.addWidget(zoom_group)
         
+        # Threshold control
+        threshold_group = QGroupBox("Threshold Adjustment")
+        threshold_group.setStyleSheet("""
+            QGroupBox::title {
+                padding-top: 5px;  
+                margin-left: 15px;
+                margin-right: 15px;
+            }
+        """)
+        threshold_layout = QVBoxLayout(threshold_group)
+        
+        threshold_label = QLabel("Adjust pupil detection threshold:")
+        threshold_layout.addWidget(threshold_label)
+        
+        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.threshold_slider.setMinimum(0)
+        self.threshold_slider.setMaximum(100)
+        self.threshold_slider.setValue(self.threshold_value)
+        self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
+        threshold_layout.addWidget(self.threshold_slider)
+        
+        self.threshold_value_label = QLabel(f"Current: {self.threshold_value}")
+        threshold_layout.addWidget(self.threshold_value_label)
+        
+        controls_layout.addWidget(threshold_group)
+        
         # Calibration control
         calibration_group = QGroupBox("Calibration")
+        calibration_group.setStyleSheet("""
+            QGroupBox::title {
+                padding-top: 5px;  
+                margin-left: 15px;
+                margin-right: 15px;
+            }
+        """)
         calibration_layout = QVBoxLayout(calibration_group)
         
         self.set_position_btn = QPushButton("Set Position (L)")
@@ -487,11 +512,15 @@ class CalibrationView(QWidget):
             self.set_position()
         else:
             # Pass the event to the parent handler
-            super(QWidget, self.video_widget).keyPressEvent(event)
+            super().keyPressEvent(event)
     
     def showEvent(self, event):
         """Called when the widget is shown"""
         super().showEvent(event)
+
+        # Ensure the widget can receive key events
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocus()
         
         # Start video timer when the view is shown
         if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
@@ -506,12 +535,10 @@ class CalibrationView(QWidget):
         # Stop video timer when the view is hidden
         self.video_timer.stop()
     
+    # Override super key press handler
     def keyPressEvent(self, event):
         """Handle key press events"""
-        if event.key() == Qt.Key.Key_L:
-            self.set_position()
-        else:
-            super().keyPressEvent(event)
+        self.on_video_key_press(event)
 
     def initialise_original_frame(self):
         """Set original frame on entry"""
