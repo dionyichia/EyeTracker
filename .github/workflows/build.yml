@@ -43,16 +43,24 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-Linux --add-data="assets:assets" --add-data="arduino:arduino" main.py
         
-    - name: Create distribution package
+    - name: Create distribution package (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        mkdir release
+        copy dist\EyeTracker-Windows.exe release\
+        xcopy arduino release\arduino\ /E /I
+        copy README.md release\
+        copy LICENSE release\
+        cd release
+        Compress-Archive -Path * -DestinationPath ..\EyeTracker-Windows.zip
+      shell: powershell
+        
+    - name: Create distribution package (macOS/Linux)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         mkdir -p release
-        if [ "$RUNNER_OS" == "Windows" ]; then
-          cp dist/EyeTracker-Windows.exe release/
-          cp -r arduino release/
-          cp README.md LICENSE release/
-          cd release && zip -r ../EyeTracker-Windows.zip .
-        elif [ "$RUNNER_OS" == "macOS" ]; then
+        if [ "$RUNNER_OS" == "macOS" ]; then
           cp -r dist/EyeTracker-macOS.app release/
           cp -r arduino release/
           cp README.md LICENSE release/
