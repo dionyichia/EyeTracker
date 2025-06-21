@@ -242,7 +242,7 @@ class EyeTrackerUtils:
                 centroid_dots = np.sum(vec_to_centroid * avg_directions, axis=1)
                 
                 # Apply filtering criteria
-                angle_filter = angles < np.radians(120)  # Reasonable angle threshold
+                angle_filter = angles < np.radians(180)  # Reasonable angle threshold
                 centroid_filter = centroid_dots >= cos_threshold
                 
                 # Combine filters
@@ -435,6 +435,51 @@ class EyeTrackerUtils:
 
         return (x_orig, y_orig)
 
+    @staticmethod 
+    def get_darkest_area_vectorized(image):
+        if image is None:
+            print("Error: Image not loaded properly")
+            return None
+
+        ignoreBounds = 20
+        imageSkipSize = 10
+        searchArea = 20
+        internalSkipSize = 5
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).astype(np.int32)
+        
+        # Calculate dimensions
+        h, w = gray.shape
+        valid_h = h - 2 * ignoreBounds - searchArea
+        valid_w = w - 2 * ignoreBounds - searchArea
+        
+        # Number of positions to check
+        num_y = len(range(0, valid_h, imageSkipSize))
+        num_x = len(range(0, valid_w, imageSkipSize))
+        
+        # Pre-allocate results array
+        sums = np.full((num_y, num_x), float('inf'))
+        
+        # Calculate all sums
+        for i, y_offset in enumerate(range(0, valid_h, imageSkipSize)):
+            for j, x_offset in enumerate(range(0, valid_w, imageSkipSize)):
+                y = ignoreBounds + y_offset
+                x = ignoreBounds + x_offset
+                
+                # Extract and sample block
+                block = gray[y:y+searchArea:internalSkipSize, x:x+searchArea:internalSkipSize]
+                sums[i, j] = np.sum(block)
+        
+        # Find minimum
+        min_idx = np.unravel_index(np.argmin(sums), sums.shape)
+        min_i, min_j = min_idx
+        
+        # Convert back to original coordinates
+        y_orig = ignoreBounds + min_i * imageSkipSize + searchArea // 2
+        x_orig = ignoreBounds + min_j * imageSkipSize + searchArea // 2
+        
+        return (x_orig, y_orig)
     
     #outside of this method, select the ellipse with the highest percentage of pixels under the ellipse 
     #TODO for efficiency, work with downscaled or cropped images

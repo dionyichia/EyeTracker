@@ -86,7 +86,7 @@ class EyeTracker():
             dilated_image = cv2.dilate(img, kernel, iterations=2)
             
             # Find contours
-            contours, _ = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, hierachy = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             # Create an empty image to draw contours
             # contour_img2 = np.zeros_like(dilated_image)
@@ -109,7 +109,7 @@ class EyeTracker():
 
                 # If the current iteration has the best goodness set it as best_image_threshold_index
                 if current_score > final_goodness:
-                    best_image_threshold_index = i-1
+                    best_image_threshold_index = i
                     final_goodness = current_score
             
         # Confidence-Based Threshold Switching, to prevent flickering caused by toggling between thresholds, only switch if goodness difference btw thres is significant
@@ -153,7 +153,7 @@ class EyeTracker():
         else:
             optimised_contours = []
 
-        del frame, dilated_image, contours, reduced_contours, final_contours 
+        del dilated_image, contours, hierachy, reduced_contours, final_contours 
 
         # Return the test_frame which has all the visualizations
         return test_frame, final_rotated_rect, optimised_contours, prev_threshold_index
@@ -172,7 +172,7 @@ class EyeTracker():
             frame = EyeTrackerUtils.zoom_frame(frame, self.zoom_factor, self.zoom_center)
         
         # Find the darkest point (pupil center)
-        self.pupil_center_pos = EyeTrackerUtils.get_darkest_area_optimised(frame)
+        self.pupil_center_pos = EyeTrackerUtils.get_darkest_area_vectorized(frame)
         if self.pupil_center_pos is None:
             return frame  # Return original frame if no darkest point found
         
@@ -207,7 +207,7 @@ class EyeTracker():
         # Update threshold index for next frame
         self.prev_threshold_index = threshold_index
         
-        del frame, gray_frame, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed
+        del gray_frame, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed
         
         # Return the processed frame with visualizations
         return processed_frame
@@ -226,7 +226,7 @@ class EyeTracker():
         # Apply all processing steps and return the processed frame
         processed_frame = self._process_single_frame(frame)
 
-        if self.frame_count % 10 == 0:
+        if self.frame_count % 50 == 0:
             print("gc force trash collecting")
             self.cleanup_frame_data()
 

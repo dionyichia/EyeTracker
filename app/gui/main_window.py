@@ -389,6 +389,7 @@ class MainWindow(QMainWindow):
                 f"An error occurred while connecting devices: {str(e)}"
             )
     
+    # Function to allow user to select form multiple arduinos connected, but who would realistically have multiple arduinos connected.
     def select_arduino_port(self, ports):
         pass
     #     """Show dialog to let user select the correct Arduino port

@@ -14,7 +14,9 @@ To create a new release:
 `git add .`
 `git commit -m "_your_commit_message"`
 
-2. Test build
+2. Test build locally
+`python script/build.py`
+- test the executable
 
 3. Tag commit to version
 

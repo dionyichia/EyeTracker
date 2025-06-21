@@ -670,12 +670,12 @@ def select_video():
     else:
         arduino = None
 
-    if not os.path.exists(abs_path):
-        print("No file found at hardcoded path. Please select a video file.")
-        video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("Video Files", "*.mp4;*.avi")])
-        if not video_path:
-            print("No file selected. Exiting.")
-            return
+    # if not os.path.exists(abs_path):
+    #     print("No file found at hardcoded path. Please select a video file.")
+    #     video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("Video Files", "*.mp4;*.avi")])
+    #     if not video_path:
+    #         print("No file selected. Exiting.")
+    #         return
             
     # first parameter is for path of video
     # second parameter is 1 for video 2 for webcam
@@ -684,7 +684,7 @@ def select_video():
     # fifth parameter is for lock_pos_threshold , old 90
     # six parameter is the arduino port
     # seven parameter is the threshold confidence 
-    process_video(abs_path, input_method=2, zoom_factor=1, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
+    process_video(abs_path, input_method=2, zoom_factor=8, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
     # process_video(abs_path, input_method=2, zoom_factor=8, zoom_center=None, lockpos_threshold=48, arduino_port=arduino, threshold_swtich_confidence_margin=2)
 
 if __name__ == "__main__":
