@@ -132,10 +132,10 @@ class EyeTrackerUtils:
         # Calculate centroid of the original contours
         centroid = np.mean(all_contours, axis=0)
         
-        # Create an image of the same size as the original image
-        point_image = image.copy()
+        # # Create an image of the same size as the original image
+        # point_image = image.copy()
         
-        skip = 0
+        # skip = 0
         
         # Loop through each point in the all_contours array
         for i in range(0, len(all_contours), 1):
@@ -149,9 +149,9 @@ class EyeTrackerUtils:
             vec1 = prev_point - current_point
             vec2 = next_point - current_point
             
-            with np.errstate(invalid='ignore'):
-                # Calculate angles between vectors
-                angle = np.arccos(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
+            # with np.errstate(invalid='ignore'):
+            #     # Calculate angles between vectors
+            #     angle = np.arccos(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
 
             
             # Calculate vector from current point to centroid
@@ -307,6 +307,39 @@ class EyeTrackerUtils:
                 
         return darkest_point
     
+    @staticmethod
+    def get_darkest_area_optimised(image):
+        if image is None:
+            print("Error: Image not loaded properly")
+            return None
+
+        ignoreBounds = 20
+        searchArea = 20
+        imageSkipSize = 10
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        # Crop the image to ignore bounds
+        cropped = gray[ignoreBounds:-ignoreBounds, ignoreBounds:-ignoreBounds]
+
+        # Use box filter to compute average pixel values in blocks
+        blurred = cv2.blur(cropped, (searchArea, searchArea))  # or cv2.boxFilter with normalize=True
+
+        # Downsample the blurred image to simulate skipping
+        downsampled = blurred[::imageSkipSize, ::imageSkipSize]
+
+        # Find the location of the minimum average value (darkest)
+        min_loc = np.unravel_index(np.argmin(downsampled), downsampled.shape)
+
+        # Map back to original coordinates
+        y_min, x_min = min_loc
+        x_orig = ignoreBounds + x_min * imageSkipSize + searchArea // 2
+        y_orig = ignoreBounds + y_min * imageSkipSize + searchArea // 2
+
+        return (x_orig, y_orig)
+
+    
     #outside of this method, select the ellipse with the highest percentage of pixels under the ellipse 
     #TODO for efficiency, work with downscaled or cropped images
     @staticmethod
@@ -341,9 +374,9 @@ class EyeTrackerUtils:
         ellipse_goodness[0] = covered_pixels / ellipse_area
         
         #skew of the ellipse (less skewed is better?) - may not need this
-        axes_lengths = ellipse[1]  # This is a tuple (minor_axis_length, major_axis_length)
-        major_axis_length = axes_lengths[1]
-        minor_axis_length = axes_lengths[0]
+        # axes_lengths = ellipse[1]  # This is a tuple (minor_axis_length, major_axis_length)
+        # major_axis_length = axes_lengths[1]
+        # minor_axis_length = axes_lengths[0]
         ellipse_goodness[2] = min(ellipse[1][1]/ellipse[1][0], ellipse[1][0]/ellipse[1][1])
         
         return ellipse_goodness

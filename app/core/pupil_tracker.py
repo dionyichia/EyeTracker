@@ -6,8 +6,17 @@ import os
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 import time
+import sys
+
 from app.core.arduino_tracker import ArduinoTracker
 from app.core.pupil_tracker_utils import EyeTrackerUtils
+# FOR PROFILLING
+"""
+# Add your app directory to path (adjust as needed)
+sys.path.append('./app/core')  # Adjust this path to your app structure
+from arduino_tracker import ArduinoTracker
+from pupil_tracker_utils import EyeTrackerUtils
+"""
 
 class EyeTracker():
     """Class for tracking eye pupil position using OpenCV"""
@@ -79,12 +88,12 @@ class EyeTracker():
             contours, hierarchy = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             # Create an empty image to draw contours
-            contour_img2 = np.zeros_like(dilated_image)
+            # contour_img2 = np.zeros_like(dilated_image)
             reduced_contours = EyeTrackerUtils.filter_contours_by_area_and_return_largest(contours, 1000, 3)
 
             if len(reduced_contours) > 0 and len(reduced_contours[0]) > 5:
                 current_goodness = EyeTrackerUtils.check_ellipse_goodness(dilated_image, reduced_contours[0])
-                gray_copy = gray_frame.copy()
+                # gray_copy = gray_frame.copy()
                 cv2.drawContours(gray_copies[i-1], reduced_contours, -1, (255), 1)
                 ellipse = cv2.fitEllipse(reduced_contours[0])
                     
@@ -178,7 +187,7 @@ class EyeTracker():
             frame = EyeTrackerUtils.zoom_frame(frame, self.zoom_factor, self.zoom_center)
         
         # Find the darkest point (pupil center)
-        self.pupil_center_pos = EyeTrackerUtils.get_darkest_area(frame)
+        self.pupil_center_pos = EyeTrackerUtils.get_darkest_area_optimised(frame)
         if self.pupil_center_pos is None:
             return frame  # Return original frame if no darkest point found
         
@@ -339,7 +348,7 @@ class EyeTracker():
         if self.zoom_factor > 1:
             frame = EyeTrackerUtils.zoom_frame(frame, self.zoom_factor, self.zoom_center)
             
-        self.locked_position = EyeTrackerUtils.get_darkest_area(frame)
+        self.locked_position = EyeTrackerUtils.get_darkest_area_optimised(frame)
         self.is_position_locked = True
     
     def is_eye_in_position(self):
@@ -354,9 +363,9 @@ class EyeTracker():
         if not self.cap or not self.cap.isOpened():
             return False
         
-        ret, frame = self.cap.read()
-        if not ret:
-            return False
+        # ret, frame = self.cap.read()
+        # if not ret:
+        #     return False
         
         return self.is_pupil_pos_within_threshold
     

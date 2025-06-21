@@ -464,7 +464,7 @@ class ArduinoTracker:
                     try:
                         data = json.loads(line)
                         latest_status = data
-                        print("data from get test status ", data)
+                        # print("data from get test status ", data)
                     except json.JSONDecodeError:
                         print(f"JSON decode error: {line}")
             
@@ -473,7 +473,7 @@ class ArduinoTracker:
                 self.is_test_running = False
                 return {'test_status': 'Finished'}
             
-            print('latest_status', latest_status)
+            # print('latest_status', latest_status)
             return latest_status or {'test_status': "No valid response"}
 
         except serial.SerialException as e:
