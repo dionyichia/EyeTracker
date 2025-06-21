@@ -1,6 +1,6 @@
 # EyeTracker - Visual Field Test System
 
-A professional eye tracking system for visual field testing with hardware integration.
+A eye tracking system for visual field testing with hardware integration.
 
 ## 🚀 Quick Start
 
@@ -17,7 +17,7 @@ A professional eye tracking system for visual field testing with hardware integr
 ### Hardware Setup
 1. Connect your Arduino device
 2. Upload the provided Arduino sketch (`arduino/eyetracker_arduino.ino`)
-3. Follow the [Hardware Setup Guide](docs/hardware_setup.md) for detailed instructions
+3. Follow the [Installation Guide](docs/installation.md) for detailed instructions
 
 ## 📋 System Requirements
 
@@ -71,11 +71,12 @@ EyeTracker/
 
 ## 📖 Documentation
 - [Installation Guide](docs/installation.md)
-- [Hardware Setup](docs/hardware_setup.md)
 - [User Guide](docs/user_guide.md)
 - [How it works](docs/how_it_works.md)
+- [Developer's Manual](docs/dev_manual.md)
 
 ## 🐛 Troubleshooting
+Check Dev Manual.
 
 ### Common Issues
 1. **Camera not detected**: Ensure camera permissions are granted
