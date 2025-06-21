@@ -149,11 +149,10 @@ class EyeTrackerUtils:
             vec1 = prev_point - current_point
             vec2 = next_point - current_point
             
-            # with np.errstate(invalid='ignore'):
-            #     # Calculate angles between vectors
-            #     angle = np.arccos(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
+            with np.errstate(invalid='ignore'):
+                # Calculate angles between vectors
+                angle = np.arccos(np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2)))
 
-            
             # Calculate vector from current point to centroid
             vec_to_centroid = centroid - current_point
             

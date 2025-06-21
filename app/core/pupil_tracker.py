@@ -24,6 +24,7 @@ class EyeTracker():
     # Video input config params, for debugging and demonstration
     CAMERA_FEED = 0
     TEST_VIDEO = 1
+    KERNEL_SIZE = 5
     
     def __init__(self, arduino_tracker=None):
         """Initialize the eye tracker"""
@@ -49,6 +50,11 @@ class EyeTracker():
         self.prev_command = 'L'
 
         self.prev_threshold_index = 0 # Tracks the grayscale threshold used. There are 3 grayscale thresholds used, for differing degree of strictness. 1 - light, 2 - medium, 3 - heavy (strict). The threshold used is dynamically determined to give best fitted pupil.
+
+        # Pre-allocate working arrays, to reduce memory usage
+        self.working_arrays = {
+            'kernel': np.ones((self.KERNEL_SIZE, self.KERNEL_SIZE), np.uint8),
+        }
         
         # Initialize camera
         self._initialize_camera()
@@ -60,117 +66,95 @@ class EyeTracker():
         """
         Process frames but don't show OpenCV windows
         """
-        final_rotated_rect = ((0,0),(0,0),0)
-
+        kernel = self.working_arrays.get('kernel')
+        if kernel is None:
+            raise ValueError("Kernel not found in working_arrays.")
+        
         image_array = [thresholded_image_relaxed, thresholded_image_medium, thresholded_image_strict] #holds images
-        name_array = ["relaxed", "medium", "strict"] #for naming windows
-        final_image = image_array[0] #holds return array
-        final_contours = [] #holds final contours
-        ellipse_reduced_contours = [] #holds an array of the best contour points from the fitting process
-        goodness = [] # goodness arr for to store goodness for all ellipse
-        best_array = 0 
-        kernel_size = 5  # Size of the kernel (5x5)
-        kernel = np.ones((kernel_size, kernel_size), np.uint8)
-        gray_copy1 = gray_frame.copy()
-        gray_copy2 = gray_frame.copy()
-        gray_copy3 = gray_frame.copy()
-        gray_copies = [gray_copy1, gray_copy2, gray_copy3]
+        goodness = [0] * 3 # goodness arr for to store goodness for all ellipse
+        final_contours = [[] for _ in range (3)] #holds final contours
+        ellipse_reduced_contours = [[] for _ in range (3)] #holds an array of the best contour points from the fitting process
+        
+        final_rotated_rect = ((0,0),(0,0),0)
         final_goodness = 0
-
         best_image_threshold_index = 1
         
         #iterate through binary images and see which fits the ellipse best
-        for i in range(1,4):
+        for i, img in enumerate(image_array):
             # Dilate the binary image
-            dilated_image = cv2.dilate(image_array[i-1], kernel, iterations=2)#medium
+            dilated_image = cv2.dilate(img, kernel, iterations=2)
             
             # Find contours
-            contours, hierarchy = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            contours, _ = cv2.findContours(dilated_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             # Create an empty image to draw contours
             # contour_img2 = np.zeros_like(dilated_image)
             reduced_contours = EyeTrackerUtils.filter_contours_by_area_and_return_largest(contours, 1000, 3)
 
-            if len(reduced_contours) > 0 and len(reduced_contours[0]) > 5:
-                current_goodness = EyeTrackerUtils.check_ellipse_goodness(dilated_image, reduced_contours[0])
-                # gray_copy = gray_frame.copy()
-                cv2.drawContours(gray_copies[i-1], reduced_contours, -1, (255), 1)
-                ellipse = cv2.fitEllipse(reduced_contours[0])
-                    
-                #in total pixels, first element is pixel total, next is ratio
-                total_pixels = EyeTrackerUtils.check_contour_pixels(reduced_contours[0], dilated_image.shape)                 
+            if reduced_contours and len(reduced_contours[0]) > 5:
+                # Cache the main contour for reuse
+                main_contour = reduced_contours[0]
+
+                # Calculate goodness and pixel metrics
+                current_goodness = EyeTrackerUtils.check_ellipse_goodness(dilated_image, main_contour)
+                total_pixels = EyeTrackerUtils.check_contour_pixels(main_contour, dilated_image.shape) #  in total pixels, first element is pixel total, next is ratio 
                 
-                cv2.ellipse(gray_copies[i-1], ellipse, (255, 0, 0), 2)  # Draw with specified color and thickness of 2
-                font = cv2.FONT_HERSHEY_SIMPLEX  # Font type
-                
-                current = current_goodness[0]*total_pixels[0]*total_pixels[0]*total_pixels[1]
+                # Combined goodness score
+                current_score = current_goodness[0]*total_pixels[0]*total_pixels[0]*total_pixels[1]
             
-                goodness.append(current)
-                ellipse_reduced_contours.append(total_pixels[2])
-                final_contours.append(reduced_contours)
+                goodness[i] = current_score
+                ellipse_reduced_contours[i] = total_pixels[2]
+                final_contours[i] = reduced_contours
 
                 # If the current iteration has the best goodness set it as best_image_threshold_index
-                if current > 0 and current == max(current, final_goodness): 
+                if current_score > final_goodness:
                     best_image_threshold_index = i-1
-                    final_goodness = current
-                    
-            else:
-                goodness.append(0)
-                ellipse_reduced_contours.append([])
-                final_contours.append([])
-
+                    final_goodness = current_score
             
         # Confidence-Based Threshold Switching, to prevent flickering caused by toggling between thresholds, only switch if goodness difference btw thres is significant
         # If the threshold index used in the previous frame and cur frame are not the same, apply confidence check
         if best_image_threshold_index != prev_threshold_index:
             # Assign the current goodness of prev_threshold_index to prev_goodness
-            prev_goodness = goodness[prev_threshold_index] if prev_threshold_index >= 0 else 0
+            prev_goodness = goodness[prev_threshold_index] if 0 <= prev_threshold_index < 3 else 0
         
             # If the best_image index's goodness is better than prev_goodness by the stipluted margin, switch images, else dont 
             if goodness[best_image_threshold_index] > prev_goodness * (1 + threshold_swtich_confidence_margin):
                 print("Changed prev_threshold_index ", prev_threshold_index, " prev_goodness ", prev_goodness, " cur index ", best_image_threshold_index, " goodness ", goodness[best_image_threshold_index])
                 prev_threshold_index = best_image_threshold_index
 
+        # Use the selected threshold results
+        selected_contours = final_contours[prev_threshold_index]
 
-        ellipse_reduced_contours = ellipse_reduced_contours[prev_threshold_index]
-        final_contours = final_contours[prev_threshold_index]
-        final_image = dilated_image
-
-        # If darkest point position hover around a particular location for more than 5 seconds, or if "L" is pressed then lockpos
+        # If user has selected lockpos, i.e. calibrated
         if self.is_position_locked:
-                # print("lock_mode_on running,  track_darkest_pt ", self.locked_position,  " darkest_point ", self.pupil_center_pos)
-                if (self.locked_position == -1):
-                    print("Calibration Error:, pupil position not calibrated!")
-                else:
-                    self.distance_between_pupilpos_and_lockpos =  math.dist(self.locked_position, self.pupil_center_pos) 
-                    frame = self.lockpos(frame, final_contours)
+            # print("lock_mode_on running,  track_darkest_pt ", self.locked_position,  " darkest_point ", self.pupil_center_pos)
+            if self.locked_position == -1:
+                print("Calibration Error:, pupil position not calibrated!")
+            else:
+                # Calc euclid dist between curr darkest point and calibrated position
+                self.distance_between_pupilpos_and_lockpos =  math.dist(self.locked_position, self.pupil_center_pos) 
+                frame = self.lockpos(frame, selected_contours)
 
         test_frame = frame.copy()
         
-        final_contours = [EyeTrackerUtils.optimize_contours_by_angle(final_contours, gray_frame)]
-        
-        if final_contours and not isinstance(final_contours[0], list) and len(final_contours[0] > 5):
-            ellipse = cv2.fitEllipse(final_contours[0])
-            final_rotated_rect = ellipse
-            center_x, center_y = map(int, ellipse[0])
-            cv2.circle(test_frame, (center_x, center_y), 3, (255, 255, 0), -1)
+        if selected_contours:
+            optimised_contours = [EyeTrackerUtils.optimize_contours_by_angle(selected_contours, gray_frame)]
+            
+            if optimised_contours and not isinstance(optimised_contours[0], list) and len(optimised_contours[0]) > 5:
+                ellipse = cv2.fitEllipse(optimised_contours[0])
+                final_rotated_rect = ellipse
+                center_x, center_y = map(int, ellipse[0])
+                cv2.circle(test_frame, (center_x, center_y), 3, (255, 255, 0), -1)
 
-            if self.is_position_locked == False:
-                cv2.ellipse(test_frame, ellipse, (255, 0, 0), 2)
+                if self.is_position_locked == False:
+                    cv2.ellipse(test_frame, ellipse, (255, 0, 0), 2)
 
-        # Don't display the OpenCV window
-        # if render_cv_window:
-        #     cv2.imshow('best_thresholded_image_contours_on_frame', test_frame)
-        
-        # Create an empty image to draw contours
-        contour_img3 = np.zeros_like(image_array[i-1])
-        
-        if len(final_contours[0]) >= 5:
-            contour = np.array(final_contours[0], dtype=np.int32).reshape((-1, 1, 2)) #format for cv2.fitEllipse
-            ellipse = cv2.fitEllipse(contour) # Fit ellipse
-            cv2.ellipse(gray_frame, ellipse, (255,255,255), 2)  # Draw with white color and thickness of 2
+            final_contours = optimised_contours
 
-        # Return the test_frame instead which has all the visualizations
+        else:
+            final_contours = []
+
+        # Return the test_frame which has all the visualizations
         return test_frame, final_rotated_rect, final_contours, prev_threshold_index
 
     # Finds the pupil in an individual frame and returns the center point
