@@ -164,6 +164,103 @@ class EyeTrackerUtils:
                 filtered_points.append(current_point)
         
         return np.array(filtered_points, dtype=np.int32).reshape((-1, 1, 2))
+    
+    def optimize_contours_by_angle_vectorised(contours, image):
+        """Optimized version with vectorized numpy operations and reduced redundancy"""
+        if len(contours) < 1:
+            return contours
+
+        # Get all contour points
+        all_contours = np.concatenate(contours[0], axis=0)
+        n_points = len(all_contours)
+        
+        if n_points < 3:
+            return all_contours.reshape((-1, 1, 2))
+        
+        # Set spacing based on size of contours (but limit the range)
+        spacing = max(1, min(n_points // 25, n_points // 3))
+        
+        # Pre-calculate centroid once
+        centroid = np.mean(all_contours, axis=0)
+        
+        # Pre-calculate cosine threshold
+        cos_threshold = np.cos(np.radians(60))
+        
+        # Vectorized approach for better performance
+        filtered_indices = []
+        
+        # Process points in batches to reduce memory usage
+        batch_size = min(1000, n_points)
+        
+        for batch_start in range(0, n_points, batch_size):
+            batch_end = min(batch_start + batch_size, n_points)
+            batch_indices = np.arange(batch_start, batch_end)
+            
+            # Get current points for this batch
+            current_points = all_contours[batch_indices]
+            
+            # Calculate previous and next indices with wrapping
+            prev_indices = (batch_indices - spacing) % n_points
+            next_indices = (batch_indices + spacing) % n_points
+            
+            # Get previous and next points
+            prev_points = all_contours[prev_indices]
+            next_points = all_contours[next_indices]
+            
+            # Calculate vectors (vectorized)
+            vec1 = prev_points - current_points
+            vec2 = next_points - current_points
+            
+            # Calculate norms once and reuse
+            norm1 = np.linalg.norm(vec1, axis=1)
+            norm2 = np.linalg.norm(vec2, axis=1)
+            
+            # Avoid division by zero
+            valid_norms = (norm1 > 1e-8) & (norm2 > 1e-8)
+            
+            if np.any(valid_norms):
+                # Calculate dot products (vectorized)
+                dot_products = np.sum(vec1 * vec2, axis=1)
+                
+                # Calculate angles only for valid points
+                valid_mask = valid_norms
+                angles = np.full(len(batch_indices), np.pi)  # Default to pi for invalid points
+                
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    cos_angles = dot_products[valid_mask] / (norm1[valid_mask] * norm2[valid_mask])
+                    # Clamp to valid range for arccos
+                    cos_angles = np.clip(cos_angles, -1.0, 1.0)
+                    angles[valid_mask] = np.arccos(cos_angles)
+                
+                # Calculate vectors to centroid (vectorized)
+                vec_to_centroid = centroid - current_points
+                
+                # Calculate average direction vectors
+                avg_directions = (vec1 + vec2) / 2
+                
+                # Calculate dot products with centroid direction (vectorized)
+                centroid_dots = np.sum(vec_to_centroid * avg_directions, axis=1)
+                
+                # Apply filtering criteria
+                angle_filter = angles < np.radians(120)  # Reasonable angle threshold
+                centroid_filter = centroid_dots >= cos_threshold
+                
+                # Combine filters
+                final_filter = valid_mask & angle_filter & centroid_filter
+                
+                # Add valid indices to result
+                valid_batch_indices = batch_indices[final_filter]
+                filtered_indices.extend(valid_batch_indices)
+        
+        # Return filtered points
+        if filtered_indices:
+            filtered_points = all_contours[filtered_indices]
+            return filtered_points.reshape((-1, 1, 2))
+        else:
+            # Fallback: return evenly spaced points if no points pass the filter
+            step = max(1, n_points // 20)
+            fallback_points = all_contours[::step]
+            return fallback_points.reshape((-1, 1, 2))
 
     #returns the largest contour that is not extremely long or tall
     #contours is the list of contours, pixel_thresh is the max pixels to filter, and ratio_thresh is the max ratio
@@ -379,4 +476,3 @@ class EyeTrackerUtils:
         ellipse_goodness[2] = min(ellipse[1][1]/ellipse[1][0], ellipse[1][0]/ellipse[1][1])
         
         return ellipse_goodness
-    

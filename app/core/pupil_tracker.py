@@ -139,7 +139,7 @@ class EyeTracker():
         test_frame = frame.copy()
         
         if selected_contours:
-            optimised_contours = [EyeTrackerUtils.optimize_contours_by_angle(selected_contours, gray_frame)]
+            optimised_contours = [EyeTrackerUtils.optimize_contours_by_angle_vectorised(selected_contours, gray_frame)]
             
             if optimised_contours and not isinstance(optimised_contours[0], list) and len(optimised_contours[0]) > 5:
                 ellipse = cv2.fitEllipse(optimised_contours[0])
