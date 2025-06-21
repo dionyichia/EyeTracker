@@ -161,7 +161,7 @@ if __name__ == "__main__":
         print("\n" + "-"*50)
         
         # Run full profiling
-        profile_eye_tracker(num_frames=50)
+        profile_eye_tracker(num_frames=200)
         
         print("\n" + "="*50)
         print("PROFILING COMPLETE")

@@ -6,7 +6,7 @@ import os
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 import time
-import sys
+import gc
 
 from app.core.arduino_tracker import ArduinoTracker
 from app.core.pupil_tracker_utils import EyeTrackerUtils
@@ -48,6 +48,7 @@ class EyeTracker():
         self.distance_between_pupilpos_and_lockpos = 0 # Tracks the distance between the pupil pos in the current frame with the initial calibrated position
         self.is_pupil_pos_within_threshold = True # True if the distance between the pupil pos current frame within the set threshold. i.e. False if too far, user is looking away
         self.prev_command = 'L'
+        self.frame_count = 0
 
         self.prev_threshold_index = 0 # Tracks the grayscale threshold used. There are 3 grayscale thresholds used, for differing degree of strictness. 1 - light, 2 - medium, 3 - heavy (strict). The threshold used is dynamically determined to give best fitted pupil.
 
@@ -149,13 +150,13 @@ class EyeTracker():
                 if self.is_position_locked == False:
                     cv2.ellipse(test_frame, ellipse, (255, 0, 0), 2)
 
-            final_contours = optimised_contours
-
         else:
-            final_contours = []
+            optimised_contours = []
+
+        del frame, dilated_image, contours, reduced_contours, final_contours 
 
         # Return the test_frame which has all the visualizations
-        return test_frame, final_rotated_rect, final_contours, prev_threshold_index
+        return test_frame, final_rotated_rect, optimised_contours, prev_threshold_index
 
     # Finds the pupil in an individual frame and returns the center point
     def _process_single_frame(self, frame):
@@ -206,6 +207,8 @@ class EyeTracker():
         # Update threshold index for next frame
         self.prev_threshold_index = threshold_index
         
+        del frame, gray_frame, thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed
+        
         # Return the processed frame with visualizations
         return processed_frame
 
@@ -218,8 +221,15 @@ class EyeTracker():
         if not ret:
             return None
         
+        self.frame_count += 1
+        
         # Apply all processing steps and return the processed frame
         processed_frame = self._process_single_frame(frame)
+
+        if self.frame_count % 10 == 0:
+            print("gc force trash collecting")
+            self.cleanup_frame_data()
+
         return processed_frame
 
     def _initialize_camera(self):
@@ -352,6 +362,17 @@ class EyeTracker():
         #     return False
         
         return self.is_pupil_pos_within_threshold
+    
+    # Add to your frame processing loop
+    def cleanup_frame_data(self):
+        """Clean up temporary arrays and matrices"""
+        if hasattr(self, '_temp_arrays'):
+            for arr in self._temp_arrays:
+                if arr is not None:
+                    del arr
+
+        gc.collect()  # Force garbage collection
+        self.frame_count = 0
     
     def release(self):
         """Release camera resources"""
