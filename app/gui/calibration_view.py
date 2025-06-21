@@ -27,7 +27,12 @@ class CalibrationView(QWidget):
         
         # Track calibration state
         self.is_calibrated = False
+
+        # Euclid Dist Threshold Level
         self.threshold_value = 48  # Default threshold
+
+        # Binary Threshold Switch Margin 
+        self.confidence_margin = 2 # Default Margin
         
         # Zoom region selection
         self.zoom_factor = 1  # Target zoom factor
@@ -55,7 +60,6 @@ class CalibrationView(QWidget):
         title_label = QLabel("Eye Position Calibration")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # main_layout.addWidget(title_label)
 
         # Help button
         help_button = QPushButton("Help")
@@ -97,16 +101,22 @@ class CalibrationView(QWidget):
         
         # Controls
         controls_layout = QVBoxLayout()
-
         controls_layout.addLayout(title_layout)
 
-                # Zoom control
+        # Zoom control
         zoom_group = QGroupBox("Zoom Adjustment")
         zoom_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
             QGroupBox::title {
-                padding-top: 5px;  
-                margin-left: 15px;
-                margin-right: 15px;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
         """)
         zoom_layout = QVBoxLayout(zoom_group)
@@ -140,22 +150,30 @@ class CalibrationView(QWidget):
         zoom_buttons_layout.addWidget(self.reset_zoom_btn)
         
         zoom_layout.addLayout(zoom_buttons_layout)
-        
         controls_layout.addWidget(zoom_group)
         
-        # Threshold control
-        threshold_group = QGroupBox("Threshold Adjustment")
+        # Combined Threshold Controls
+        threshold_group = QGroupBox("Detection Thresholds")
         threshold_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
             QGroupBox::title {
-                padding-top: 5px;  
-                margin-left: 15px;
-                margin-right: 15px;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
         """)
         threshold_layout = QVBoxLayout(threshold_group)
         
-        threshold_label = QLabel("Adjust pupil detection threshold:")
-        threshold_layout.addWidget(threshold_label)
+        # Pupil Detection Threshold
+        pupil_threshold_label = QLabel("Pupil Detection Threshold:")
+        pupil_threshold_label.setStyleSheet("font-weight: normal; margin-top: 5px;")
+        threshold_layout.addWidget(pupil_threshold_label)
         
         self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
         self.threshold_slider.setMinimum(0)
@@ -165,26 +183,61 @@ class CalibrationView(QWidget):
         threshold_layout.addWidget(self.threshold_slider)
         
         self.threshold_value_label = QLabel(f"Current: {self.threshold_value}")
+        self.threshold_value_label.setStyleSheet("font-weight: normal; color: #666; margin-bottom: 10px;")
         threshold_layout.addWidget(self.threshold_value_label)
+        
+        # Confidence Switch Margin
+        confidence_margin_label = QLabel("Confidence Switch Margin:")
+        confidence_margin_label.setStyleSheet("font-weight: normal; margin-top: 5px;")
+        threshold_layout.addWidget(confidence_margin_label)
+        
+        self.confidence_margin_slider = QSlider(Qt.Orientation.Horizontal)
+        self.confidence_margin_slider.setMinimum(0)
+        self.confidence_margin_slider.setMaximum(10)
+        self.confidence_margin_slider.setValue(self.confidence_margin)
+        self.confidence_margin_slider.valueChanged.connect(self.on_confidence_margin_changed)
+        threshold_layout.addWidget(self.confidence_margin_slider)
+        
+        self.confidence_margin_label = QLabel(f"Current: {self.confidence_margin}")
+        self.confidence_margin_label.setStyleSheet("font-weight: normal; color: #666;")
+        threshold_layout.addWidget(self.confidence_margin_label)
         
         controls_layout.addWidget(threshold_group)
         
         # Calibration control
         calibration_group = QGroupBox("Calibration")
         calibration_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
             QGroupBox::title {
-                padding-top: 5px;  
-                margin-left: 15px;
-                margin-right: 15px;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
         """)
         calibration_layout = QVBoxLayout(calibration_group)
         
         self.set_position_btn = QPushButton("Set Position (L)")
+        self.set_position_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px;
+                border-radius: 4px;
+                border: 1px solid #ccc;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
         self.set_position_btn.clicked.connect(self.set_position)
         calibration_layout.addWidget(self.set_position_btn)
         
         self.calibration_status = QLabel("Status: Not calibrated")
+        self.calibration_status.setStyleSheet("font-weight: normal; color: #666; margin-top: 5px;")
         calibration_layout.addWidget(self.calibration_status)
         
         controls_layout.addWidget(calibration_group)
@@ -195,6 +248,23 @@ class CalibrationView(QWidget):
         # Start test button
         self.start_test_btn = QPushButton("Start Test")
         self.start_test_btn.setMinimumHeight(50)
+        self.start_test_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #27ae60;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #219a52;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+        """)
         self.start_test_btn.setEnabled(False)  # Disabled until calibrated
         self.start_test_btn.clicked.connect(self.on_start_test)
         controls_layout.addWidget(self.start_test_btn)
@@ -218,6 +288,15 @@ class CalibrationView(QWidget):
         # Update eye tracker threshold if available
         if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
             self.parent.eye_tracker.set_threshold(value)
+    
+    def on_confidence_margin_changed(self, value):
+        """Handle confidence margin slider value change"""
+        self.confidence_margin = value
+        self.confidence_margin_label.setText(f"Current: {value}")
+        
+        # Update eye tracker threshold if available
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.set_confidence_margin(value)
     
     def on_zoom_changed(self, value):
         """Handle zoom slider value change"""

@@ -39,7 +39,7 @@ class EyeTracker():
         self.zoom_factor = 1 # Video feed zoom factor
         self.lockpos_threshold = 48 # Allowable distance between pupil position and initial calibrated position. (Euclid dist)
         self.zoom_center = None 
-        self.threshold_switch_confidence_margin = 2
+        self.confidence_margin_for_switching_bin_threshold = 2
         
         # State tracking
         self.pupil_center_pos = None # Tracks the center of the pupil (center of darkest area)
@@ -139,7 +139,7 @@ class EyeTracker():
         test_frame = frame.copy()
         
         if selected_contours:
-            optimised_contours = [EyeTrackerUtils.optimize_contours_by_angle_vectorised(selected_contours, gray_frame)]
+            optimised_contours = [EyeTrackerUtils.optimize_contours_by_angle(selected_contours, gray_frame)]
             
             if optimised_contours and not isinstance(optimised_contours[0], list) and len(optimised_contours[0]) > 5:
                 ellipse = cv2.fitEllipse(optimised_contours[0])
@@ -196,7 +196,7 @@ class EyeTracker():
         # Process frames with your existing method - get the processed frame with visualizations
         processed_frame, pupil_rotated_rect, final_contours, threshold_index = self.process_frames(
             self.prev_threshold_index, 
-            self.threshold_switch_confidence_margin,
+            self.confidence_margin_for_switching_bin_threshold,
             thresholded_image_strict, 
             thresholded_image_medium, 
             thresholded_image_relaxed,
@@ -317,6 +317,10 @@ class EyeTracker():
     def set_threshold(self, value):
         """Set the threshold value based on slider in GUI"""
         self.lockpos_threshold = value
+
+    def set_confidence_margin(self, value):
+        """Set the threshold value based on slider in GUI"""
+        self.confidence_margin_for_switching_bin_threshold = value
 
     def set_zoom(self, value, center=None):
         """
