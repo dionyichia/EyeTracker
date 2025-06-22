@@ -5,7 +5,7 @@ import sys
 # Define paths - the spec file is in build_spec_files/macos/
 # We need to go up two levels to reach the project root
 spec_dir = os.path.dirname(os.path.abspath(SPECPATH))
-project_root = os.path.abspath(os.path.join(spec_dir, '..', '..'))
+project_root = os.path.abspath(os.path.join(spec_dir, '..'))
 
 # Path to main.py from project root
 main_py = os.path.join(project_root, 'main.py')
