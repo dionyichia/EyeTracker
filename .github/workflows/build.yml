@@ -38,7 +38,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         pyinstaller build_spec_files/macos/EyeTracker-macOS.spec
-      working-directory: ${{ github.workspace }}/EyeTracker
+      working-directory: ${{ github.workspace }}
 
         
     - name: Build with PyInstaller (Linux)
