@@ -1,9 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+import os
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=[os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))],
     binaries=[],
     datas=[('assets', 'assets'), ('arduino', 'arduino')],
     hiddenimports=[],
