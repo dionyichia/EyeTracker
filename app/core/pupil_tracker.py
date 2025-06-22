@@ -4,7 +4,6 @@ import math
 import tkinter as tk
 import os
 from tkinter import filedialog
-import matplotlib.pyplot as plt
 import time
 import gc
 
