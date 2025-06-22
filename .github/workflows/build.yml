@@ -15,10 +15,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
-    - uses: actions/checkout@v4  # Updated from v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v5  # Updated from v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         
@@ -28,6 +28,35 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
+    # Create Info.plist for macOS build
+    - name: Create Info.plist for macOS
+      if: runner.os == 'macOS'
+      run: |
+        cat > Info.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleName</key>
+            <string>EyeTracker</string>
+            <key>CFBundleDisplayName</key>
+            <string>EyeTracker</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.eyetracker.app</string>
+            <key>CFBundleVersion</key>
+            <string>1.0.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0.0</string>
+            <key>NSCameraUsageDescription</key>
+            <string>This application uses the camera to track eye movement for visual field testing procedures.</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.13</string>
+        </dict>
+        </plist>
+        EOF
+        
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
@@ -36,7 +65,7 @@ jobs:
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       run: |
-        pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-macOS --add-data="assets:assets" --add-data="arduino:arduino" main.py
+        pyinstaller --noconfirm --windowed --name=EyeTracker-macOS --add-data="assets:assets" --add-data="arduino:arduino" --info-plist=Info.plist main.py
         
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
@@ -73,9 +102,9 @@ jobs:
         fi
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4  # Updated from v3
+      uses: actions/upload-artifact@v4
       with:
-        name: EyeTracker-${{ runner.os }}  # Each OS gets unique artifact name (required in v4)
+        name: EyeTracker-${{ runner.os }}
         path: |
           EyeTracker-Windows.zip
           EyeTracker-macOS.zip
@@ -87,19 +116,19 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
-      contents: write  # Required to create releases
+      contents: write
     
     steps:
-    - uses: actions/checkout@v4  # Updated from v3
+    - uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v4  # Updated from v3
+      uses: actions/download-artifact@v4
       with:
-        pattern: EyeTracker-*  # Download all artifacts matching this pattern
-        merge-multiple: true   # Merge all artifacts into single directory
+        pattern: EyeTracker-*
+        merge-multiple: true
         
     - name: Create Release
-      uses: softprops/action-gh-release@v2  # Updated to latest version
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           EyeTracker-Windows.zip

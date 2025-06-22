@@ -38,3 +38,6 @@ config.local.py
 
 # Profiled Logs
 *eye_tracker_profile.prof
+
+# Mac Camera Permissions Enquiry
+*Info.plist
