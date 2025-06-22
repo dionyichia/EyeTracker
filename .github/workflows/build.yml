@@ -28,44 +28,16 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    # Create Info.plist for macOS build
-    - name: Create Info.plist for macOS
-      if: runner.os == 'macOS'
-      run: |
-        cat > Info.plist << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>CFBundleName</key>
-            <string>EyeTracker</string>
-            <key>CFBundleDisplayName</key>
-            <string>EyeTracker</string>
-            <key>CFBundleIdentifier</key>
-            <string>com.eyetracker.app</string>
-            <key>CFBundleVersion</key>
-            <string>1.0.0</string>
-            <key>CFBundleShortVersionString</key>
-            <string>1.0.0</string>
-            <key>NSCameraUsageDescription</key>
-            <string>This application uses the camera to track eye movement for visual field testing procedures.</string>
-            <key>NSHighResolutionCapable</key>
-            <true/>
-            <key>LSMinimumSystemVersion</key>
-            <string>10.13</string>
-        </dict>
-        </plist>
-        EOF
-        
     - name: Build with PyInstaller (Windows)
       if: runner.os == 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-Windows --add-data="assets;assets" --add-data="arduino;arduino" main.py
         
+    # Build using Spec file to include Info.plist
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       run: |
-        pyinstaller --noconfirm --windowed --name=EyeTracker-macOS --add-data="assets:assets" --add-data="arduino:arduino" --info-plist=Info.plist main.py
+        pyinstaller build_spec_files/macos/EyeTracker-macOS.spec
         
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'

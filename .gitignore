@@ -20,7 +20,6 @@ pip-delete-this-directory.txt
 # PyInstaller
 build/
 dist/
-*.spec
 
 # IDE
 .vscode/
