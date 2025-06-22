@@ -3,10 +3,42 @@ import os
 import sys
 import platform
 
-# Get the correct project root path
-# This spec file is in build_spec_files/macos/, so we need to go up 2 levels
-spec_dir = os.path.dirname(os.path.abspath(SPECPATH))
-project_root = os.path.abspath(os.path.join(spec_dir, '..'))
+# More robust path detection
+# First, try to find the project root by looking for main.py
+def find_project_root():
+    # Start from the current working directory (where PyInstaller is called from)
+    current_dir = os.getcwd()
+    print(f"Current working directory: {current_dir}")
+    
+    # Check if main.py is in the current directory
+    if os.path.exists(os.path.join(current_dir, 'main.py')):
+        print(f"Found main.py in current directory: {current_dir}")
+        return current_dir
+    
+    # If not, try to find it relative to the spec file location
+    spec_dir = os.path.dirname(os.path.abspath(SPECPATH))
+    print(f"Spec file directory: {spec_dir}")
+    
+    # Go up two levels from the spec file (build_spec_files/macos/)
+    project_from_spec = os.path.abspath(os.path.join(spec_dir, '..', '..'))
+    if os.path.exists(os.path.join(project_from_spec, 'main.py')):
+        print(f"Found main.py relative to spec file: {project_from_spec}")
+        return project_from_spec
+    
+    # Last resort: search parent directories
+    search_dir = current_dir
+    for _ in range(5):  # Don't search too far up
+        if os.path.exists(os.path.join(search_dir, 'main.py')):
+            print(f"Found main.py in parent directory: {search_dir}")
+            return search_dir
+        search_dir = os.path.dirname(search_dir)
+        if search_dir == os.path.dirname(search_dir):  # Reached root
+            break
+    
+    raise FileNotFoundError("Could not find project root with main.py")
+
+# Find the project root
+project_root = find_project_root()
 
 # Path to main.py from project root
 main_py = os.path.join(project_root, 'main.py')
@@ -14,7 +46,6 @@ main_py = os.path.join(project_root, 'main.py')
 # Verify paths exist
 if not os.path.exists(main_py):
     print(f"ERROR: main.py not found at {main_py}")
-    print(f"Spec directory: {spec_dir}")
     print(f"Project root: {project_root}")
     print(f"Contents of project root: {os.listdir(project_root) if os.path.exists(project_root) else 'Directory not found'}")
     sys.exit(1)
@@ -22,11 +53,22 @@ if not os.path.exists(main_py):
 # Paths for data files
 assets_path = os.path.join(project_root, 'assets')
 arduino_path = os.path.join(project_root, 'arduino')
-info_plist_path = os.path.join(spec_dir, 'Info.plist')
+
+# Look for Info.plist in multiple locations
+info_plist_paths = [
+    os.path.join(project_root, 'build_spec_files', 'macos', 'Info.plist'),
+    os.path.join(os.path.dirname(SPECPATH), 'Info.plist'),
+]
+
+info_plist_path = None
+for path in info_plist_paths:
+    if os.path.exists(path):
+        info_plist_path = path
+        break
 
 print(f"Using main.py: {main_py}")
-print(f"Using assets: {assets_path}")
-print(f"Using arduino: {arduino_path}")
+print(f"Using assets: {assets_path} (exists: {os.path.exists(assets_path)})")
+print(f"Using arduino: {arduino_path} (exists: {os.path.exists(arduino_path)})")
 print(f"Using Info.plist: {info_plist_path}")
 print(f"Project root: {project_root}")
 
@@ -91,10 +133,14 @@ try:
             macos_binaries.append((lib_path, '.'))
     
     print(f"Found OpenCV libraries: {len(macos_binaries)} files")
-except ImportError:
-    print("WARNING: OpenCV not found - camera functionality may not work")
+    print(f"OpenCV version: {cv2.__version__}")
+    print(f"OpenCV path: {cv2_path}")
+except ImportError as e:
+    print(f"WARNING: OpenCV not found - {e}")
+except Exception as e:
+    print(f"ERROR with OpenCV: {e}")
 
-# System frameworks and libraries
+# System frameworks and libraries - be more careful about what exists
 system_frameworks = [
     '/System/Library/Frameworks/AVFoundation.framework/Versions/A/AVFoundation',
     '/System/Library/Frameworks/CoreMedia.framework/Versions/A/CoreMedia',
@@ -107,15 +153,32 @@ for framework in system_frameworks:
     if os.path.exists(framework):
         macos_binaries.append((framework, '.'))
         print(f"Including framework: {os.path.basename(framework)}")
+    else:
+        print(f"Framework not found: {framework}")
+
+print(f"Total binaries to include: {len(macos_binaries)}")
+
+# Build the data files list more carefully
+datas = []
+if os.path.exists(assets_path):
+    datas.append((assets_path, 'assets'))
+    print(f"Including assets directory")
+else:
+    print(f"Assets directory not found: {assets_path}")
+
+if os.path.exists(arduino_path):
+    datas.append((arduino_path, 'arduino'))
+    print(f"Including arduino directory")
+else:
+    print(f"Arduino directory not found: {arduino_path}")
+
+print(f"Data files to include: {len(datas)} directories")
 
 a = Analysis(
     [main_py],
-    pathex=[project_root, app_dir],  # Add app directory to Python path
+    pathex=[project_root] + ([app_dir] if os.path.exists(app_dir) else []),
     binaries=macos_binaries,
-    datas=[item for item in [
-        (assets_path, 'assets') if os.path.exists(assets_path) else None,
-        (arduino_path, 'arduino') if os.path.exists(arduino_path) else None,
-    ] if item is not None],
+    datas=datas,
     hiddenimports=macos_hidden_imports,
     hookspath=[],
     hooksconfig={},
@@ -170,6 +233,6 @@ app = BUNDLE(
     name='EyeTracker.app',
     icon=None,
     bundle_identifier='com.eyetracker.app',
-    info_plist=info_plist_path if os.path.exists(info_plist_path) else None,
+    info_plist=info_plist_path,
     version='1.0.0',
 )

@@ -17,10 +17,11 @@ venv/
 pip-log.txt
 pip-delete-this-directory.txt
 
-# PyInstaller
+# PyInstaller & Local Build 
 build/
 dist/
 release/
+EyeTracker-macOS.zip
 
 # IDE
 .vscode/

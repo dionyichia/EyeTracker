@@ -43,14 +43,32 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-Windows --add-data="assets;assets" --add-data="arduino;arduino" main.py
-        
+    
+    - name: Debug macOS paths and environment
+      if: runner.os == 'macOS'
+      run: |
+        echo "=== Current working directory ==="
+        pwd
+        echo "=== Directory contents ==="
+        ls -la
+        echo "=== Spec file exists? ==="
+        ls -la build_spec_files/macos/EyeTracker-macOS.spec
+        echo "=== Python and PyInstaller versions ==="
+        python --version
+        pyinstaller --version
+        echo "=== Environment variables ==="
+        printenv | grep -E "(DYLD|PKG_CONFIG|PATH)" || echo "No relevant env vars"
+            
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
         DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
         PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig
       run: |
-        pyinstaller --clean build_spec_files/macos/EyeTracker-macOS.spec
+        echo "=== Starting PyInstaller build ==="
+        echo "Working directory: $(pwd)"
+        echo "Spec file path: $(realpath build_spec_files/macos/EyeTracker-macOS.spec)"
+        pyinstaller --clean --log-level DEBUG build_spec_files/macos/EyeTracker-macOS.spec
         
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
