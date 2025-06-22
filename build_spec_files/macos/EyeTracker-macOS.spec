@@ -32,10 +32,6 @@ a = Analysis(
     [main_py],
     pathex=[project_root],
     binaries=[],
-    datas=[
-        (assets_path, 'assets') if os.path.exists(assets_path) else None,
-        (arduino_path, 'arduino') if os.path.exists(arduino_path) else None,
-    ],
     datas=[item for item in [
         (assets_path, 'assets') if os.path.exists(assets_path) else None,
         (arduino_path, 'arduino') if os.path.exists(arduino_path) else None,
