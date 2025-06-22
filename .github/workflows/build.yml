@@ -37,7 +37,11 @@ jobs:
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       run: |
-        pyinstaller build_spec_files/macos/EyeTracker-macOS.spec
+        cd build_spec_files/macos
+        pyinstaller EyeTracker-macOS.spec
+        cd ../..
+        # Copy the built app to dist directory
+        cp -r build_spec_files/macos/dist/EyeTracker.app dist/
         
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
@@ -62,7 +66,7 @@ jobs:
       run: |
         mkdir -p release
         if [ "$RUNNER_OS" == "macOS" ]; then
-          cp -r dist/EyeTracker-macOS.app release/
+          cp -r dist/EyeTracker.app release/
           cp -r arduino release/
           cp README.md LICENSE release/
           cd release && zip -r ../EyeTracker-macOS.zip .
