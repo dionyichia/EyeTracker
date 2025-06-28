@@ -1,6 +1,6 @@
 # EyeTracker - Visual Field Test System
 
-A eye tracking system for visual field testing with hardware integration.
+A lightweight, robust eye-tracking system used as part of the pre-assessment preparation for patients undergoing the Humphrey Visual Field Test.
 
 ## 🚀 Quick Start
 
@@ -41,7 +41,7 @@ A eye tracking system for visual field testing with hardware integration.
 ### Building from Source
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/EyeTracker.git
+git clone https://github.com/dionyichia/EyeTracker.git
 cd EyeTracker
 
 # Create virtual environment

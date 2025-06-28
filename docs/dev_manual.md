@@ -6,9 +6,13 @@ This manual provides essential information for debugging, profiling, and releasi
 
 | Task | Command/Process |
 |------|----------------|
-| Profile application | `python -m app.core.profiler` |
-| Build locally | `python script/build.py` |
+| Run application locally from cli | `python main.py` |
+| Run older pre-app version | `cd app/pre_app_core` `python pupil_fitter.py` |
+| Profile pupil tracking computation | `python -m app.core.profiler` |
+| Build project locally | `python scripts/build.py` |
 | Create release | Follow the [Release Process](#releasing) |
+
+*run all commands from root of proj, i.e. Eyetracker
 
 ## Profiling
 
