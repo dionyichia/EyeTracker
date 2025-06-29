@@ -1,11 +1,26 @@
-## Usage
-1. Run the arduino script from the arduino IDE
-2. Run the script, using run "python .\OrloskyPupilDetector.py" from terminal. 
+# Usage
+This test consists of 4 phases. Instructions and guides for each phase is given below.
 
-A test video (eye_test.mp4) is included in the root directory for testing. 
+## Welcome
 
-**Change the input_method under select_video function, to 1 and rerun script. Remember to change zoom factor.
+1. Connecting Devices
 
-Assumptions
-- Works best with 640x480 videos. Images will be cropped to size equally horizontally/vertically if aspect ratio is not 4:3.
-- The image must be that of the entire eye. Dark regions in the corners of the image (e.g. VR display lens borders) should be cropped. 
+## Calibration
+
+1. Zoom
+
+2. Threshold Adjustment
+
+3. Confidence Margin Adjustment
+
+4. Calibrate Position
+
+## Test
+
+1. Video Frame
+
+2. Progress panel
+
+## Results
+
+1. Understanding Results

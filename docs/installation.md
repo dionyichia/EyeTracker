@@ -1,22 +1,36 @@
-## Installation
+# Installation
 
-Requirements:
+### Software Requirements:
 - Python 3.x
 - Necessary Python libraries (listed below)
 - Arduino IDE
-- An Ardunio
-- Necessary hardware modules (listed below)[]
 
 Packages
 - check requirements.txt
 
 ### Hardware Requirements
+
+![TinkerCad](../assets/hardware.png)
+
+- An Ardunio
+- Necessary hardware modules (listed below)
 - Eye tracking hardware (see hardware setup guide)
 - Arduino-compatible device
 - Webcam or integrated camera
 
-![TinkerCad](../assets/hardware.png)
+Hardware Modules
+- 1 Arduino Uno /R3/R4
+- 2 Micro Servos
+- 1 Pan-tilt Bracket
+- 1 Laser module (Note TinkerCad does not have Laser Module so i replaced it with an LED)
+- 4 LED Strips
+- 1 Buzzer
+- 1 Button
+- 1 Breadboard
+- Neccessary number of wires
+
 [TinkerCad Link](https://www.tinkercad.com/things/hbdBevcn4zu-eyetracker-?sharecode=pFWRcWMHXZaVKUqXxHB7ckLPEXDNkKYSklO1osI9qO0)
+
 
 ### Booth Diagram:
 
@@ -26,7 +40,6 @@ Packages
 ### Hardware Setup
 1. Connect your Arduino device
 2. Upload the provided Arduino sketch (`arduino/eyetracker_arduino.ino`)
-3. Follow the [Installation Guide](docs/installation.md) for detailed instructions
 
 ### Software Installation
 1. Download the latest release from [Releases](https://github.com/dionyichia/EyeTracker/releases)

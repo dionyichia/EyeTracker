@@ -1,6 +1,6 @@
 # Developer's Manual
 
-This manual provides essential information for debugging, profiling, and releasing the application.
+This manual provides information for debugging, profiling, releasing and notes for future development.
 
 ## Quick Reference
 
@@ -115,3 +115,8 @@ The following optimized functions are available as alternatives:
 - Performance profiling results are saved in the project logs
 - Build artifacts are generated in the `dist/` directory
 - CI/CD logs provide detailed information about automated testing results
+
+
+## Future Notes
+
+1. Might want to add some form of face detection to auto crop the frame to leave only the pupil as the darkest area.
