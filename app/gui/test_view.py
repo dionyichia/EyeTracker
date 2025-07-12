@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
     QPushButton, QProgressBar, QGroupBox
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont
 
 from app.gui.widgets.video_widget import VideoWidget
 from app.gui.widgets.help_popup import HelpPopup
@@ -145,8 +144,9 @@ class TestView(QWidget):
         main_layout.addLayout(content_layout)
 
     def show_help(self):
-        """Show the help popup for calibration"""
-        self.help_popup = HelpPopup(self, phase="test")
+        """Show the help popup for test phase"""
+        self.help_popup = HelpPopup(self, phase="test", current_power_mode=self.parent.current_power_mode, 
+                                    external_power_mode_slot=self.parent.on_power_mode_changed)
         self.help_popup.show()
     
     def update_video_feed(self):

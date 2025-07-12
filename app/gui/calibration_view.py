@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QSlider, QGroupBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect, QPoint
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QColor, QPen
+from PyQt6.QtGui import QColor, QPen
 
 from app.gui.widgets.video_widget import VideoWidget
 from app.gui.widgets.help_popup import HelpPopup
@@ -16,6 +16,7 @@ class CalibrationView(QWidget):
     
     # Signals
     calibration_complete = pyqtSignal()
+    power_mode_changed = pyqtSignal(str)  # New signal for power mode changes
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -229,9 +230,6 @@ class CalibrationView(QWidget):
                 border-radius: 4px;
                 border: 1px solid #ccc;
             }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
         """)
         self.set_position_btn.clicked.connect(self.set_position)
         calibration_layout.addWidget(self.set_position_btn)
@@ -277,7 +275,8 @@ class CalibrationView(QWidget):
 
     def show_help(self):
         """Show the help popup for calibration"""
-        self.help_popup = HelpPopup(self, phase="calib")
+        self.help_popup = HelpPopup(self, phase="calib", current_power_mode=self.parent.current_power_mode, 
+                                    external_power_mode_slot=self.parent.on_power_mode_changed)
         self.help_popup.show()
         
     def on_threshold_changed(self, value):

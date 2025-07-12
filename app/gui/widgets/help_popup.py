@@ -1,9 +1,19 @@
 from PyQt6 import QtCore, QtWidgets
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
+
+# Import the new AdvancedSettingsPopup
+from app.gui.widgets.adv_setting_popup import AdvancedSettingsPopup
 
 class HelpPopup(QtWidgets.QWidget):
-    def __init__(self, parent, phase="start"):
+    """Help Popup Content for all screens, renders differently based on current test stage."""
+    
+    # Signal for when power mode changes
+    power_mode_changed = pyqtSignal(str)
+    
+    def __init__(self, parent, phase="start", current_power_mode="medium", external_power_mode_slot=None):
         super().__init__(parent)
+        self.current_power_mode = current_power_mode
+        self.external_power_mode_slot = external_power_mode_slot
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_StyledBackground)
         self.setAutoFillBackground(True)
@@ -27,46 +37,49 @@ class HelpPopup(QtWidgets.QWidget):
             QPushButton#close {
                 color: white;
                 font-weight: bold;
-                background: #e74c3c;
+                font-size: 16px; 
+                background-color: #e74c3c;
                 border: none;
-                border-radius: 12px;
+                border-radius: 4px;
             }
             QPushButton#close:hover {
-                background: #c0392b;
+                background-color: #c0392b;
             }
         ''')
 
-        # Main layout fills the entire parent
+        # Full layout for the popup
         full_layout = QtWidgets.QVBoxLayout(self)
         full_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Container widget centered in the popup
-        self.container = QtWidgets.QWidget(
-            autoFillBackground=True, objectName='container')
-        full_layout.addWidget(self.container, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.container.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum)
-
-        # Close button
-        self.close_button = QtWidgets.QPushButton(
-            'X', self.container, objectName='close')
-        self.close_button.clicked.connect(self.close)
+        # Create container
+        self.container = QtWidgets.QWidget(objectName='container')
+        full_layout.addWidget(self.container, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Container layout
         layout = QtWidgets.QVBoxLayout(self.container)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(15)
 
+        # Close button
+        self.close_button = QtWidgets.QPushButton('X', self.container, objectName='close')
+        self.close_button.setFixedSize(50, 40)  # Increased from 30x30
+        self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_button.clicked.connect(self.close)
+
+        # Add close button at top-right
+        top_button_layout = QtWidgets.QHBoxLayout()
+        top_button_layout.setContentsMargins(0, 0, 0, 0)
+        top_button_layout.addStretch()
+        top_button_layout.addWidget(self.close_button)
+        layout.addLayout(top_button_layout, stretch=0)
+
         # Title
-        title = QtWidgets.QLabel(
-            self._get_title(phase), 
-            objectName='title', 
-            alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+        title = QtWidgets.QLabel(self._get_title(phase), objectName='title')
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         # Help content
         help_content = self._get_help_content(phase)
-        
         help_text = QtWidgets.QLabel(help_content)
         help_text.setWordWrap(True)
         help_text.setTextFormat(QtCore.Qt.TextFormat.RichText)
@@ -80,7 +93,11 @@ class HelpPopup(QtWidgets.QWidget):
         """)
         layout.addWidget(help_text)
 
-        # OK button
+        # Button layout (bottom)
+        button_layout = QtWidgets.QHBoxLayout()
+        advanced_button = QtWidgets.QPushButton("Advanced Settings")
+        advanced_button.clicked.connect(self.show_advanced_settings)
+
         ok_button = QtWidgets.QPushButton("Got it!")
         ok_button.clicked.connect(self.close)
         ok_button.setStyleSheet("""
@@ -96,10 +113,34 @@ class HelpPopup(QtWidgets.QWidget):
                 background-color: #2980b9;
             }
         """)
-        layout.addWidget(ok_button, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
-        # Install event filter to handle parent resize
+        button_layout.addWidget(advanced_button)
+        button_layout.addStretch()
+        button_layout.addWidget(ok_button)
+        layout.addLayout(button_layout)
+
+        # Track resize of parent
         parent.installEventFilter(self)
+
+    def show_advanced_settings(self):
+        """Show the advanced settings popup and close this help popup."""
+        self.close()  # Close the help popup first
+        
+        # Create and show the advanced settings popup
+        self.advanced_popup = AdvancedSettingsPopup(self.parent(), self.current_power_mode)
+
+        # Connect the power mode changed signal to pass it up
+        if self.external_power_mode_slot:
+            self.advanced_popup.power_mode_changed.connect(self.external_power_mode_slot)
+        
+        self.advanced_popup.show()
+
+    def on_power_mode_changed(self, mode):
+        """Handle power mode changes and forward the signal."""
+        self.current_power_mode = mode
+        self.power_mode_changed.emit(mode)
+
+        print(f"[HelpPopup] Received power mode change: {mode}")
 
     def _get_title(self, phase):
         """Get the appropriate title for the help popup based on phase"""
@@ -188,13 +229,13 @@ class HelpPopup(QtWidgets.QWidget):
         # Make popup fill the entire parent
         self.setGeometry(self.parent().rect())
 
-    def resizeEvent(self, event):
-        # Position close button at top-right of container
-        if hasattr(self, 'close_button') and hasattr(self, 'container'):
-            button_rect = self.close_button.rect()
-            container_rect = self.container.rect()
-            button_rect.moveTopRight(container_rect.topRight() + QtCore.QPoint(-10, 10))
-            self.close_button.setGeometry(button_rect)
+    # def resizeEvent(self, event):
+    #     # Position close button at top-right of container
+    #     if hasattr(self, 'close_button') and hasattr(self, 'container'):
+    #         button_rect = self.close_button.rect()
+    #         container_rect = self.container.rect()
+    #         button_rect.moveTopRight(container_rect.topRight() + QtCore.QPoint(-10, 10))
+    #         self.close_button.setGeometry(button_rect)
 
     def eventFilter(self, source, event):
         # Keep popup sized to match parent

@@ -292,25 +292,3 @@ def identify_bottlenecks():
         print(f"   Location: {bottleneck['location']}")
         print(f"   Impact: {bottleneck['impact']}")
         print(f"   Solution: {bottleneck['solution']}\n")
-
-# Usage example:
-"""
-# To use this profiler with your existing code:
-
-# 1. Import and create profiler
-profiler = EyeTrackerProfiler()
-
-# 2. Profile your application
-eye_tracker = EyeTracker()  # Your existing instance
-results = profiler.profile_full_application(eye_tracker, num_frames=100)
-
-# 3. Benchmark performance
-benchmark_results = benchmark_frame_processing(eye_tracker, num_frames=50)
-
-# 4. View bottlenecks
-identify_bottlenecks()
-
-# 5. View detailed profile
-stats = pstats.Stats('eye_tracker_profile.prof')
-stats.sort_stats('cumulative').print_stats(20)
-"""

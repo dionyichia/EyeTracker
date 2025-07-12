@@ -4,7 +4,6 @@ Configuration utilities for the EyeTracker application
 import os
 import json
 import logging
-from pathlib import Path
 
 # Default configuration
 DEFAULT_CONFIG = {
@@ -32,7 +31,7 @@ DEFAULT_CONFIG = {
     
     # Test settings
     "test": {
-        "num_points": 100,  # Number of points to flash during the test
+        "num_points": 16,  # Number of points to flash during the test
         "point_duration": 0.5,  # Duration each point is visible in seconds
         "minimum_interval": 0.2,  # Minimum interval between points in seconds
         "maximum_interval": 1.0,  # Maximum interval between points in seconds
@@ -45,7 +44,6 @@ DEFAULT_CONFIG = {
         "window_size": [800, 600],
     }
 }
-
 
 def get_config_dir():
     """Get the directory for config files"""

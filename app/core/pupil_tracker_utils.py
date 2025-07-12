@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 
 class EyeTrackerUtils:
+    # Image Processing Functions
 
-    # Basic Image Processing Functions
     # Crop the image to maintain a specific aspect ratio (width:height) before resizing. 
     @staticmethod
     def crop_to_aspect_ratio(image, width=640, height=480):
@@ -26,7 +26,7 @@ class EyeTrackerUtils:
 
         return cv2.resize(cropped_img, (width, height))
     
-    #apply thresholding to an image
+    # Apply thresholding to an image
     @staticmethod
     def apply_binary_threshold(image, darkestPixelValue, addedThreshold):
         # Calculate the threshold as the sum of the two input values
@@ -353,7 +353,7 @@ class EyeTrackerUtils:
         return [absolute_pixel_total_thick, ratio_under_ellipse, overlap_thin]
 
     
-    #Finds a square area of dark pixels in the image
+    #Finds a square area of dark pixels in the image, original brute force method, just left here for reference
     #@param I input image (converted to grayscale during search process)
     #@return a point within the pupil region
     @staticmethod
@@ -376,13 +376,6 @@ class EyeTrackerUtils:
         # Loop over the image with spacing defined by imageSkipSize, ignoring the boundaries
         for y in range(ignoreBounds, gray.shape[0] - ignoreBounds - searchArea, imageSkipSize):
             for x in range(ignoreBounds, gray.shape[1] - ignoreBounds - searchArea, imageSkipSize):
-                # Draw a rectangle on the color image to visualize the block
-                #top_left = (x, y)
-                #bottom_right = (x + searchArea, y + searchArea)
-                #cv2.rectangle(gray, top_left, bottom_right, (0, 0, 255), imageSkipSize)
-                # Display the image with the drawn rectangles
-                #cv2.imshow("Grayscale Image for darkest area get", gray)
-                #cv2.waitKey(1)  # Wait for 200 milliseconds to see the rectangles
 
                 current_sum = 0
                 num_pixels = 0
@@ -403,6 +396,9 @@ class EyeTrackerUtils:
                 
         return darkest_point
     
+    #Finds a square area of dark pixels in the image, uses blur to average darkness of kernel rather than brute force calc
+    #@param I input image (converted to grayscale during search process)
+    #@return a point within the pupil region    
     @staticmethod
     def get_darkest_area_optimised(image):
         if image is None:
@@ -435,6 +431,9 @@ class EyeTrackerUtils:
 
         return (x_orig, y_orig)
 
+    #Finds a square area of dark pixels in the image, uses np calc and vectors for speed, same output as brute force
+    #@param I input image (converted to grayscale during search process)
+    #@return a point within the pupil region    
     @staticmethod 
     def get_darkest_area_vectorized(image):
         if image is None:

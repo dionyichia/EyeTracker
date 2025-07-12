@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QMessageBox, QStatusBar, QHBoxLayout,
     QFrame
 )
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon, QAction, QKeySequence, QFont, QPixmap, QGuiApplication
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon, QAction, QKeySequence, QGuiApplication
 
 from app.gui.calibration_view import CalibrationView
 from app.gui.test_view import TestView
@@ -31,8 +31,6 @@ class MainWindow(QMainWindow):
         width = int(screen_size.width() * 0.9)
         height = int(screen_size.height() * 0.9)
         self.resize(width, height)
-
-        # self.setMinimumSize(WIDTH, HEIGHT)
         
         # Define application color palette
         self.app_colors = {
@@ -59,6 +57,9 @@ class MainWindow(QMainWindow):
         # Used to track application state
         self.is_connected = False
         self.is_test_running = False
+
+        # Power mode tracking
+        self.current_power_mode = "medium"  # Default to medium power
         
         # Initialize with welcome screen
         self.show_welcome_view()
@@ -87,7 +88,7 @@ class MainWindow(QMainWindow):
                 min-height: 30px;
             }}
             QPushButton:hover {{
-                background-color: #2980b9;
+                background-color: #4f515a;
             }}
             QPushButton:disabled {{
                 background-color: #bdc3c7;
@@ -308,23 +309,46 @@ class MainWindow(QMainWindow):
         
         # Connect button
         connect_button = QPushButton("Connect Devices")
-        connect_button.clicked.connect(self.connect_devices)
-        connect_button.setMinimumHeight(50)
         connect_button.setStyleSheet(f"""
-            background-color: {self.app_colors["success"]};
-            font-size: 16px;
-            padding: 12px;
+            QPushButton {{
+                background-color: {self.app_colors["secondary"]};
+                color: {self.app_colors["white"]};
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 16px;
+                padding: 12px;
+                min-height: 50px;
+            }}
+
+            QPushButton:hover {{
+                background-color: #4f515a;
+            }}
         """)
+        connect_button.clicked.connect(self.connect_devices)
         welcome_layout.addWidget(connect_button)
         
         layout.addWidget(welcome_container)     
         return welcome_widget
 
     def show_help_popup(self):
-        """Show the help popup"""
-        popup = HelpPopup(self)
-        popup.show()
+        """Show the help popup for calibration"""
+        self.help_popup = HelpPopup(self, phase="start", current_power_mode=self.current_power_mode, 
+                                    external_power_mode_slot=self.on_power_mode_changed)
+        self.help_popup.show()
     
+    def on_power_mode_changed(self, mode):
+        """Handle power mode changes from the help popup."""
+        self.current_power_mode = mode
+        
+        if self.eye_tracker:
+            if mode == 'low':
+                self.eye_tracker.set_power(0)
+            elif mode == 'medium':
+                self.eye_tracker.set_power(1)
+            else:
+                self.eye_tracker.set_power(2)
+
     def setup_connections(self):
         """Set up signal/slot connections"""
         # Will be implemented as more components are added
@@ -362,7 +386,6 @@ class MainWindow(QMainWindow):
             self.arduino_tracker = ArduinoTracker(
                 auto_connect=True,
                 baud_rate=self.config['arduino']['baud_rate'],
-                on_detect_callback=self.select_arduino_port,
                 port_identifiers=self.config['arduino']['port_identifiers']
             )
             
@@ -388,87 +411,6 @@ class MainWindow(QMainWindow):
                 "Error", 
                 f"An error occurred while connecting devices: {str(e)}"
             )
-    
-    # Function to allow user to select form multiple arduinos connected, but who would realistically have multiple arduinos connected.
-    def select_arduino_port(self, ports):
-        pass
-    #     """Show dialog to let user select the correct Arduino port
-        
-    #     Args:
-    #         ports: List of available ports
-            
-    #     Returns:
-    #         str: Selected port or None if canceled
-    #     """
-    #     from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QListWidgetItem, QDialogButtonBox
-        
-    #     dialog = QDialog(self)
-    #     dialog.setWindowTitle("Select Arduino Port")
-    #     dialog.setMinimumWidth(400)
-    #     dialog.setStyleSheet(f"""
-    #         QDialog {{
-    #             background-color: {self.app_colors["white"]};
-    #         }}
-    #         QLabel {{
-    #             color: {self.app_colors["dark"]};
-    #             font-size: 14px;
-    #             margin-bottom: 10px;
-    #         }}
-    #         QListWidget {{
-    #             border: 1px solid #bdc3c7;
-    #             border-radius: 4px;
-    #             padding: 5px;
-    #             background-color: {self.app_colors["white"]};
-    #         }}
-    #         QListWidget::item {{
-    #             padding: 8px;
-    #             border-bottom: 1px solid #ecf0f1;
-    #         }}
-    #         QListWidget::item:selected {{
-    #             background-color: {self.app_colors["secondary"]};
-    #             color: {self.app_colors["white"]};
-    #         }}
-    #         QPushButton {{
-    #             background-color: {self.app_colors["secondary"]};
-    #             color: {self.app_colors["white"]};
-    #             border: none;
-    #             padding: 8px 16px;
-    #             border-radius: 4px;
-    #             font-weight: bold;
-    #         }}        
-    #     """)
-        
-    #     layout = QVBoxLayout(dialog)
-    #     layout.setContentsMargins(20, 20, 20, 20)
-    #     layout.setSpacing(15)
-        
-    #     # Add helpful message
-    #     message = QLabel("Multiple Arduino devices detected. Please select the correct port:")
-    #     layout.addWidget(message)
-        
-    #     # Create list widget for port selection
-    #     port_list = QListWidget()
-    #     for port_info in ports:
-    #         item = QListWidgetItem(f"{port_info['port']} - {port_info['description']}")
-    #         item.setData(Qt.ItemDataRole.UserRole, port_info['port'])
-    #         port_list.addWidget(item)
-        
-    #     layout.addWidget(port_list)
-        
-    #     # Add buttons
-    #     buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-    #     buttons.accepted.connect(dialog.accept)
-    #     buttons.rejected.connect(dialog.reject)
-    #     layout.addWidget(buttons)
-        
-    #     # Show dialog and process result
-    #     if dialog.exec() == QDialog.DialogCode.Accepted:
-    #         selected_items = port_list.selectedItems()
-    #         if selected_items:
-    #             return selected_items[0].data(Qt.ItemDataRole.UserRole)
-        
-    #     return None  # User canceled or no selection
-
     
     def start_test(self):
         """Start the vision test"""

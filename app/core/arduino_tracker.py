@@ -242,7 +242,7 @@ class ArduinoTracker:
         try:
             if self.arduino.in_waiting > 0:
                 response = self.arduino.read(1)
-                if response == b'O':
+                if response == self.RESP_ACK:
                     return 1
                 else:
                     return 2
