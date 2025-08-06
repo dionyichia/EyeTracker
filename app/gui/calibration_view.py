@@ -621,6 +621,10 @@ class CalibrationView(QWidget):
     def initialise_original_frame(self):
         """Set original frame on entry"""
         self.original_frame = self.update_video_feed()
+
+        if not self.original_frame:
+            print("No frame detected, video feed not working.")
+            return 
         print(self.original_frame.width(), self.original_frame.height())
 
 

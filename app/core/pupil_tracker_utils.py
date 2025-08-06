@@ -4,9 +4,29 @@ import numpy as np
 class EyeTrackerUtils:
     # Image Processing Functions
 
-    # Crop the image to maintain a specific aspect ratio (width:height) before resizing. 
+    # Crop the image to maintain a specific aspect ratio (width:height)
     @staticmethod
     def crop_to_aspect_ratio(image, width=640, height=480):
+        current_height, current_width = image.shape[:2]
+        desired_ratio = width / height
+        current_ratio = current_width / current_height
+
+        if current_ratio > desired_ratio:
+            # Image is too wide — crop the sides
+            new_width = int(desired_ratio * current_height)
+            offset = (current_width - new_width) // 2
+            cropped_img = image[:, offset:offset+new_width]
+        else:
+            # Image is too tall — crop the top and bottom
+            new_height = int(current_width / desired_ratio)
+            offset = (current_height - new_height) // 2
+            cropped_img = image[offset:offset+new_height, :]
+
+        return cropped_img  # No resizing done
+
+    # Crop the image to maintain a specific aspect ratio (width:height) before resizing. 
+    @staticmethod
+    def crop_to_aspect_ratio_with_resizing(image, width=640, height=480):
         
         # Calculate current aspect ratio
         current_height, current_width = image.shape[:2]

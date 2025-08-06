@@ -74,7 +74,7 @@ Servo myservo2;
 
 // Laser point coordinates (4 points): (Y-axis: 0 (top) - 180 (bottom), X-axis: 0 (right) - 180 (left)) 
 // int myPoints[4][2] = {{75, 110}, {70, 60}, {20, 60}, {30, 110}}; 
-int myPoints[4][2] = {{20, 130}, {60, 130}, {60, 70}, {10, 70}}; 
+int myPoints[8][2] = {{13,90}, {13,55}, {39,55}, {70,55}, {20,130}, {45,130}, {70,129}, {70,90}};
 const int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
 char click_tracker[numPoints];
 int click_counter = 0;

@@ -22,6 +22,15 @@ jobs:
       with:
         python-version: '3.11'
         
+    # macOS specific setup
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      run: |
+        # Install create-dmg for better packaging
+        brew install create-dmg
+        # Set up development environment
+        export MACOSX_DEPLOYMENT_TARGET=10.14
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -44,36 +53,119 @@ jobs:
       run: |
         pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-Windows --add-data="assets;assets" --add-data="arduino;arduino" main.py
     
-    - name: Debug macOS paths and environment
-      if: runner.os == 'macOS'
-      run: |
-        echo "=== Current working directory ==="
-        pwd
-        echo "=== Directory contents ==="
-        ls -la
-        echo "=== Spec file exists? ==="
-        ls -la build_spec_files/macos/EyeTracker-macOS.spec
-        echo "=== Python and PyInstaller versions ==="
-        python --version
-        pyinstaller --version
-        echo "=== Environment variables ==="
-        printenv | grep -E "(DYLD|PKG_CONFIG|PATH)" || echo "No relevant env vars"
-            
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
+        MACOSX_DEPLOYMENT_TARGET: '10.14'
         DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
         PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig
       run: |
-        echo "=== Starting PyInstaller build ==="
-        echo "Working directory: $(pwd)"
-        echo "Spec file path: $(realpath build_spec_files/macos/EyeTracker-macOS.spec)"
-        pyinstaller --clean --log-level DEBUG build_spec_files/macos/EyeTracker-macOS.spec
+        # Create a modified spec file for CI
+        cat > EyeTracker-CI.spec << 'EOF'
+        # -*- mode: python ; coding: utf-8 -*-
+        
+        a = Analysis(
+            ['main.py'],
+            pathex=[],
+            binaries=[],
+            datas=[('assets', 'assets'), ('arduino', 'arduino')],
+            hiddenimports=[
+                'PyQt6.QtCore',
+                'PyQt6.QtGui', 
+                'PyQt6.QtWidgets',
+                'PyQt6.QtOpenGL',
+                'PyQt6.QtOpenGLWidgets'
+            ],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            noarchive=False,
+            optimize=0,
+        )
+        
+        pyz = PYZ(a.pure)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            [],
+            exclude_binaries=True,
+            name='EyeTracker',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            console=False,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+        
+        coll = COLLECT(
+            exe,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            name='EyeTracker',
+        )
+        
+        app = BUNDLE(
+            coll,
+            name='EyeTracker.app',
+            icon=None,
+            bundle_identifier='com.eyetracker.app',
+            version='1.0.0',
+            info_plist={
+                'CFBundleName': 'EyeTracker',
+                'CFBundleDisplayName': 'EyeTracker',
+                'CFBundleVersion': '1.0.0',
+                'CFBundleShortVersionString': '1.0.0',
+                'NSCameraUsageDescription': 'This app requires camera access for eye tracking functionality.',
+                'NSHighResolutionCapable': 'True',
+                'LSMinimumSystemVersion': '10.14.0',
+            },
+        )
+        EOF
+        
+        echo "=== Building with CI-optimized spec ==="
+        pyinstaller --clean --log-level INFO EyeTracker-CI.spec
+        
+        echo "=== Post-build verification ==="
+        if [ -d "dist/EyeTracker.app" ]; then
+          echo "App bundle created successfully"
+          ls -la dist/EyeTracker.app/Contents/MacOS/
+          
+          # Test if the binary is properly linked
+          otool -L dist/EyeTracker.app/Contents/MacOS/EyeTracker || echo "otool failed"
+          
+          # Try to fix any library path issues
+          install_name_tool -add_rpath @executable_path/../Frameworks dist/EyeTracker.app/Contents/MacOS/EyeTracker || echo "install_name_tool failed"
+        else
+          echo "ERROR: App bundle not created"
+          exit 1
+        fi
         
     - name: Build with PyInstaller (Linux)
       if: runner.os == 'Linux'
       run: |
         pyinstaller --noconfirm --onefile --windowed --name=EyeTracker-Linux --add-data="assets:assets" --add-data="arduino:arduino" main.py
+        
+    # Debug step for macOS
+    - name: Debug macOS build
+      if: runner.os == 'macOS'
+      run: |
+        echo "=== Checking app structure ==="
+        find dist/EyeTracker.app -name "*.dylib" | head -10
+        echo "=== Checking Qt plugins ==="
+        find dist/EyeTracker.app -path "*/platforms/*" -o -path "*/imageformats/*" | head -5
+        echo "=== Checking Python framework ==="
+        find dist/EyeTracker.app -name "*Python*" | head -5
         
     - name: Create distribution package (Windows)
       if: runner.os == 'Windows'
@@ -92,9 +184,11 @@ jobs:
       run: |
         mkdir -p release
         
-        # Copy app bundle using rsync to preserve structure
+        # Copy app bundle using rsync to preserve structure and permissions
         if [ -d "dist/EyeTracker.app" ]; then
           rsync -a --delete dist/EyeTracker.app/ release/EyeTracker.app/
+          # Ensure executable permissions
+          chmod +x release/EyeTracker.app/Contents/MacOS/EyeTracker
         fi
         
         # Copy additional files
@@ -108,6 +202,17 @@ jobs:
           cp LICENSE release/
         fi
         
+        # Create a run script for troubleshooting
+        cat > release/run_debug.sh << 'EOF'
+        #!/bin/bash
+        echo "Starting EyeTracker with debug output..."
+        cd "$(dirname "$0")"
+        export DYLD_PRINT_LIBRARIES=1
+        export QT_DEBUG_PLUGINS=1
+        ./EyeTracker.app/Contents/MacOS/EyeTracker
+        EOF
+        chmod +x release/run_debug.sh
+        
         # Create zip file
         cd release && zip -r ../EyeTracker-macOS.zip .
         
@@ -120,6 +225,7 @@ jobs:
         # Copy executable
         if [ -f "dist/EyeTracker-Linux" ]; then
           cp dist/EyeTracker-Linux release/
+          chmod +x release/EyeTracker-Linux
         fi
         
         # Copy additional files
@@ -170,5 +276,21 @@ jobs:
           EyeTracker-macOS.zip
           EyeTracker-Linux.tar.gz
         generate_release_notes: true
+        body: |
+          ## Installation Instructions
+
+          ### macOS
+          1. Download EyeTracker-macOS.zip
+          2. Extract and move EyeTracker.app to Applications folder
+          3. Right-click the app and select "Open" the first time
+          4. If it crashes, run `./run_debug.sh` from Terminal for debug info
+          
+          ### Windows
+          1. Download EyeTracker-Windows.zip
+          2. Extract and run EyeTracker-Windows.exe
+          
+          ### Linux
+          1. Download EyeTracker-Linux.tar.gz
+          2. Extract and run `./EyeTracker-Linux`
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
