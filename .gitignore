@@ -42,4 +42,4 @@ config.local.py
 *eye_tracker_profile.prof
 
 # Mac Camera Permissions Enquiry
-*Info.plist
+# *Info.plist
