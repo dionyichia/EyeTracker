@@ -56,98 +56,62 @@ jobs:
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
-        MACOSX_DEPLOYMENT_TARGET: '10.14'
+        MACOSX_DEPLOYMENT_TARGET: '10.15'
         DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
         PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig
       run: |
-        # Create a modified spec file for CI
-        cat > EyeTracker-CI.spec << 'EOF'
-        # -*- mode: python ; coding: utf-8 -*-
+        # Verify project structure
+        echo "=== Project structure check ==="
+        pwd
+        ls -la
         
-        a = Analysis(
-            ['main.py'],
-            pathex=[],
-            binaries=[],
-            datas=[('assets', 'assets'), ('arduino', 'arduino')],
-            hiddenimports=[
-                'PyQt6.QtCore',
-                'PyQt6.QtGui', 
-                'PyQt6.QtWidgets',
-                'PyQt6.QtOpenGL',
-                'PyQt6.QtOpenGLWidgets'
-            ],
-            hookspath=[],
-            hooksconfig={},
-            runtime_hooks=[],
-            excludes=[],
-            noarchive=False,
-            optimize=0,
-        )
+        # Verify spec file exists
+        if [ ! -f "build_spec_files/macos/EyeTracker-macOS.spec" ]; then
+          echo "ERROR: Spec file not found"
+          find . -name "*.spec" -type f
+          exit 1
+        fi
         
-        pyz = PYZ(a.pure)
+        # Verify Info.plist exists
+        if [ ! -f "build_spec_files/macos/Info.plist" ]; then
+          echo "ERROR: Info.plist not found"
+          find . -name "Info.plist" -type f
+          exit 1
+        fi
         
-        exe = EXE(
-            pyz,
-            a.scripts,
-            [],
-            exclude_binaries=True,
-            name='EyeTracker',
-            debug=False,
-            bootloader_ignore_signals=False,
-            strip=False,
-            upx=True,
-            console=False,
-            disable_windowed_traceback=False,
-            argv_emulation=False,
-            target_arch=None,
-            codesign_identity=None,
-            entitlements_file=None,
-        )
+        echo "=== Building with existing spec file ==="
+        pyinstaller --clean --log-level INFO build_spec_files/macos/EyeTracker-macOS.spec
         
-        coll = COLLECT(
-            exe,
-            a.binaries,
-            a.zipfiles,
-            a.datas,
-            strip=False,
-            upx=True,
-            upx_exclude=[],
-            name='EyeTracker',
-        )
-        
-        app = BUNDLE(
-            coll,
-            name='EyeTracker.app',
-            icon=None,
-            bundle_identifier='com.eyetracker.app',
-            version='1.0.0',
-            info_plist={
-                'CFBundleName': 'EyeTracker',
-                'CFBundleDisplayName': 'EyeTracker',
-                'CFBundleVersion': '1.0.0',
-                'CFBundleShortVersionString': '1.0.0',
-                'NSCameraUsageDescription': 'This app requires camera access for eye tracking functionality.',
-                'NSHighResolutionCapable': 'True',
-                'LSMinimumSystemVersion': '10.14.0',
-            },
-        )
-        EOF
-        
-        echo "=== Building with CI-optimized spec ==="
-        pyinstaller --clean --log-level INFO EyeTracker-CI.spec
-        
-        echo "=== Post-build verification ==="
+        echo "=== Verifying build output ==="
         if [ -d "dist/EyeTracker.app" ]; then
-          echo "App bundle created successfully"
+          echo "✓ App bundle created successfully"
           ls -la dist/EyeTracker.app/Contents/MacOS/
           
-          # Test if the binary is properly linked
-          otool -L dist/EyeTracker.app/Contents/MacOS/EyeTracker || echo "otool failed"
+          # Check if executable exists and has proper permissions
+          if [ -x "dist/EyeTracker.app/Contents/MacOS/EyeTracker" ]; then
+            echo "✓ Executable has proper permissions"
+          else
+            echo "⚠ Fixing executable permissions"
+            chmod +x dist/EyeTracker.app/Contents/MacOS/EyeTracker
+          fi
           
-          # Try to fix any library path issues
-          install_name_tool -add_rpath @executable_path/../Frameworks dist/EyeTracker.app/Contents/MacOS/EyeTracker || echo "install_name_tool failed"
+          # Check for Info.plist
+          if [ -f "dist/EyeTracker.app/Contents/Info.plist" ]; then
+            echo "✓ Info.plist included"
+            # Verify camera permission is in Info.plist
+            if grep -q "NSCameraUsageDescription" dist/EyeTracker.app/Contents/Info.plist; then
+              echo "✓ Camera permission found in Info.plist"
+            else
+              echo "⚠ Camera permission missing from Info.plist"
+            fi
+          else
+            echo "⚠ Info.plist missing"
+          fi
+          
         else
-          echo "ERROR: App bundle not created"
+          echo "x App bundle not created"
+          echo "Contents of dist directory:"
+          ls -la dist/ || echo "dist directory not found"
           exit 1
         fi
         
