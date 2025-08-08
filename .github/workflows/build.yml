@@ -25,19 +25,12 @@ jobs:
     # macOS specific setup
     - name: Install macOS dependencies
       if: runner.os == 'macOS'
-      id: macos_version
       run: |
-        version=$(sw_vers -productVersion | cut -d '.' -f1,2)
-        echo "macos_version=$version" >> $GITHUB_OUTPUT
-
-    - name: Set MACOSX_DEPLOYMENT_TARGET env var
-      if: runner.os == 'macOS'
-      run: echo "MACOSX_DEPLOYMENT_TARGET=${{ steps.macos_version.outputs.macos_version }}" >> $GITHUB_ENV
-
-    - name: Install macOS dependencies
-      if: runner.os == 'macOS'
-      run: |
-        brew install create-dmg
+          # Set to minimum supported macOS version
+          echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+          # Optional: verify the runner can build for this target
+          echo "Building on macOS $(sw_vers -productVersion) for minimum target 10.15"
+          brew install create-dmg
         
     - name: Upgrade pip and install requirements
       run: |
@@ -76,7 +69,7 @@ jobs:
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
-        MACOSX_DEPLOYMENT_TARGET: ${{ steps.macos_version.outputs.macos_version }}
+        MACOSX_DEPLOYMENT_TARGET: "10.15"
         DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
         PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig
       run: |
