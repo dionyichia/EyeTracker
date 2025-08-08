@@ -21,6 +21,8 @@ pip-delete-this-directory.txt
 # PyInstaller & Local Build 
 build/
 dist/
+dist_old/
+
 release/
 EyeTracker-macOS.zip
 

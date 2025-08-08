@@ -25,17 +25,25 @@ jobs:
     # macOS specific setup
     - name: Install macOS dependencies
       if: runner.os == 'macOS'
+      id: macos_version
       run: |
-        # Install create-dmg for better packaging
+        version=$(sw_vers -productVersion | cut -d '.' -f1,2)
+        echo "macos_version=$version" >> $GITHUB_OUTPUT
+
+    - name: Set MACOSX_DEPLOYMENT_TARGET env var
+      if: runner.os == 'macOS'
+      run: echo "MACOSX_DEPLOYMENT_TARGET=${{ steps.macos_version.outputs.macos_version }}" >> $GITHUB_ENV
+
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      run: |
         brew install create-dmg
-        # Set up development environment
-        export MACOSX_DEPLOYMENT_TARGET=10.14
         
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
+        PYINSTALLER_COMPILE_BOOTLOADER=1 pip install git+https://github.com/pyinstaller/pyinstaller.git@develop
         
     - name: Clean build artifacts
       run: |
@@ -56,7 +64,7 @@ jobs:
     - name: Build with PyInstaller (macOS)
       if: runner.os == 'macOS'
       env:
-        MACOSX_DEPLOYMENT_TARGET: '10.15'
+        MACOSX_DEPLOYMENT_TARGET: ${{ steps.macos_version.outputs.macos_version }}
         DYLD_LIBRARY_PATH: /opt/homebrew/lib:/usr/local/lib
         PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig
       run: |
