@@ -286,7 +286,7 @@ class EyeTracker():
         """Initialize the Logitech Brio 4K with optimal quality settings for macOS"""
         try:
             # Use AVFoundation backend (macOS native) instead of DirectShow
-            self.cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+            self.cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
             
             if not self.cap.isOpened():
                 print("AVFoundation backend failed, trying default")
@@ -303,34 +303,34 @@ class EyeTracker():
             # Low Power: High framerate (recommended for real-time applications)
             width, height, fps = 1920, 1080, 60
 
-            # Medium Power:
-            # width, height, fps = 2560, 1440, 60
+            # # Medium Power:
+            # # width, height, fps = 2560, 1440, 60
             
-            # High Power: High resolution (uncomment if you prefer 4K)
-            # width, height, fps = 3840, 2160, 30
+            # # High Power: High resolution (uncomment if you prefer 4K)
+            # # width, height, fps = 3840, 2160, 30
             
-            # Set resolution first
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            # # Set resolution first
+            # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             
-            # Set framerate
-            self.cap.set(cv2.CAP_PROP_FPS, fps)
+            # # Set framerate
+            # self.cap.set(cv2.CAP_PROP_FPS, fps)
             
-            # Try MJPEG codec first (better for macOS and reduces bandwidth)
-            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+            # # Try MJPEG codec first (better for macOS and reduces bandwidth)
+            # self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
             
-            # Essential settings for quality
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimal buffering for low latency
+            # # Essential settings for quality
+            # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimal buffering for low latency
             
-            # Auto-exposure settings (critical for good image quality)
-            # 0.25 = 1/4 auto exposure (some control but not fully auto)
-            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-            self.cap.set(cv2.CAP_PROP_EXPOSURE, -10) 
+            # # Auto-exposure settings (critical for good image quality)
+            # # 0.25 = 1/4 auto exposure (some control but not fully auto)
+            # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+            # self.cap.set(cv2.CAP_PROP_EXPOSURE, -10) 
             
-            # Keep these neutral and let auto-exposure handle brightness
-            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 0.7)
-            self.cap.set(cv2.CAP_PROP_CONTRAST, 0.5) 
-            self.cap.set(cv2.CAP_PROP_SATURATION, 0.0)
+            # # Keep these neutral and let auto-exposure handle brightness
+            # self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 0.7)
+            # self.cap.set(cv2.CAP_PROP_CONTRAST, 0.5) 
+            # self.cap.set(cv2.CAP_PROP_SATURATION, 0.0)
             
             # Minimize gain to reduce noise (this is crucial for graininess)
             self.cap.set(cv2.CAP_PROP_GAIN, 0)
@@ -351,9 +351,9 @@ class EyeTracker():
                 ret, _ = self.cap.read()
                 if not ret:
                     break
-                time.sleep(0.1)  # Small delay between reads
-            
-            # Verify final settings
+                    time.sleep(0.1)  # Small delay between reads
+                
+                # Verify final settings
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
