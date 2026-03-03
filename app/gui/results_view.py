@@ -1,13 +1,65 @@
 """
 Results view for the EyeTracker application
 """
+from datetime import datetime
+from uuid import uuid4
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
+    QDialog, QLineEdit, QFormLayout, QDialogButtonBox, QMessageBox
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+
+from app.utils.config import load_config
+from app.integrations.google_sheets import append_row, GoogleSheetsError
+
+
+class SaveResultsDialog(QDialog):
+    """Prompt for patient and admin names before saving."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Save Results")
+        self.setModal(True)
+        self.setStyleSheet(
+            "QDialog { background-color: #ffffff; }"
+            "QLabel { color: #111111; }"
+            "QLineEdit { color: #111111; border: 1px solid #111111; border-radius: 6px; padding: 6px 8px; }"
+            "QPushButton { color: #111111; border: 1px solid #111111; border-radius: 6px; padding: 6px 12px; }"
+            "QPushButton:hover { background-color: #f5f5f5; }"
+        )
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self.patient_input = QLineEdit()
+        self.patient_input.setPlaceholderText("Patient name")
+        self.admin_input = QLineEdit()
+        self.admin_input.setPlaceholderText("Admin name")
+
+        form.addRow("Patient name:", self.patient_input)
+        form.addRow("Admin name:", self.admin_input)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._on_save)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.setFixedWidth(360)
+
+    def _on_save(self):
+        if not self.patient_input.text().strip() or not self.admin_input.text().strip():
+            QMessageBox.warning(self, "Missing Info", "Please enter both patient and admin names.")
+            return
+        self.accept()
+
+    def get_values(self):
+        return self.patient_input.text().strip(), self.admin_input.text().strip()
 
 
 class ResultsView(QWidget):
@@ -120,60 +172,30 @@ class ResultsView(QWidget):
         if not results:
             self.summary_label.setText("No results available")
             return
-        
-        # Update summary label
-        total_points = results.get('points_shown', 0)
-        total_clicks = results.get('clicks', 0)
-        click_patten = results.get('click_pattern', None)
-        if not click_patten:
-            points_clicked = 0
-            points_missed = 0
-        else:
-            points_clicked = click_patten.count('1')
-            points_missed = click_patten.count('0')
-        num_times_look_away = results.get('out_of_thres_counter', 0)
 
-
-        # True positive - click with theres light
-        true_postiive =  points_clicked
-        # False positive - click when there is nothing 
-        false_positives = total_clicks - points_clicked
-        # True negative - no click when there is no light
-        # true_postiive =  
-        # False negative - no click when there is light
-        false_negative = points_missed
-        
-        # Calculate accuracy percentage
-        accuracy = 0
-        false_positive_rate = 0
-        fixation_loss_rate = 0
-        if total_points > 0:
-            accuracy = (points_clicked / total_points) * 100
-            false_positive_rate = (false_positives / total_points) * 100
-            fixation_loss_rate = (num_times_look_away / total_points) * 100
-        
+        metrics = self._calculate_metrics(results)
         summary_text = (
-            f"<span style='font-weight:700'>{points_clicked} / {total_points}</span> points detected at "
-            f"<span style='font-weight:700'>{accuracy:.1f}%</span> accuracy."
+            f"<span style='font-weight:700'>{metrics['points_clicked']} / {metrics['total_points']}</span> "
+            f"points detected at <span style='font-weight:700'>{metrics['accuracy']:.1f}%</span> accuracy."
         )
         self.summary_label.setText(summary_text)
 
         # Update details table
         self.results_table.setRowCount(0)  # Clear existing rows
-        
+
         # Add rows to table
-        metrics = [
-            ("Total points shown", total_points),
-            ("Points detected", points_clicked),
-            ("Points missed", points_missed),
-            ("False button presses", false_positives),
-            ("Number of times looked away", num_times_look_away),
-            ("Detection accuracy", f"{accuracy:.1f}%"),
-            ("False positive rate", f"{false_positive_rate:.1f}%"),
-            ("Fixation loss rate", f"{fixation_loss_rate:.1f}%"),
+        table_rows = [
+            ("Total points shown", metrics["total_points"]),
+            ("Points detected", metrics["points_clicked"]),
+            ("Points missed", metrics["points_missed"]),
+            ("False button presses", metrics["false_positives"]),
+            ("Number of times looked away", metrics["num_times_look_away"]),
+            ("Detection accuracy", f"{metrics['accuracy']:.1f}%"),
+            ("False positive rate", f"{metrics['false_positive_rate']:.1f}%"),
+            ("Fixation loss rate", f"{metrics['fixation_loss_rate']:.1f}%"),
         ]
         
-        for row, (metric, value) in enumerate(metrics):
+        for row, (metric, value) in enumerate(table_rows):
             self.results_table.insertRow(row)
             self.results_table.setItem(row, 0, QTableWidgetItem(metric))
             self.results_table.setItem(row, 1, QTableWidgetItem(str(value)))
@@ -192,6 +214,41 @@ class ResultsView(QWidget):
 
         if hasattr(self, "content") and self.content:
             self.content.setFixedWidth(self.results_table.width())
+
+    def _calculate_metrics(self, results):
+        """Calculate the metrics used for summary and storage."""
+        total_points = results.get('points_shown', 0)
+        total_clicks = results.get('clicks', 0)
+        click_pattern = results.get('click_pattern') or ""
+
+        if click_pattern:
+            points_clicked = click_pattern.count('1')
+            points_missed = click_pattern.count('0')
+        else:
+            points_clicked = 0
+            points_missed = 0
+
+        num_times_look_away = results.get('out_of_thres_counter', 0)
+        false_positives = max(total_clicks - points_clicked, 0)
+
+        accuracy = 0.0
+        false_positive_rate = 0.0
+        fixation_loss_rate = 0.0
+        if total_points > 0:
+            accuracy = (points_clicked / total_points) * 100
+            false_positive_rate = (false_positives / total_points) * 100
+            fixation_loss_rate = (num_times_look_away / total_points) * 100
+
+        return {
+            "total_points": total_points,
+            "points_clicked": points_clicked,
+            "points_missed": points_missed,
+            "false_positives": false_positives,
+            "num_times_look_away": num_times_look_away,
+            "accuracy": accuracy,
+            "false_positive_rate": false_positive_rate,
+            "fixation_loss_rate": fixation_loss_rate,
+        }
     
     def print_results(self):
         """Print the test results"""
@@ -208,61 +265,73 @@ class ResultsView(QWidget):
             QMessageBox.information(self, "Print", "Printing functionality will be implemented.")
     
     def save_results(self):
-        """Save the test results to a file"""
+        """Save the test results to Google Sheets"""
         if not self.results:
             return
-        
-        from PyQt6.QtWidgets import QFileDialog
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save Results",
-            "",
-            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*)"
-        )
-        
-        if file_path:
-            try:
-                with open(file_path, 'w') as file:
-                    # Write header
-                    file.write("Metric,Value\n")
-                    
-                    # Write data
-                    total_points = self.results.get('points_shown', 0)
-                    total_clicks = self.results.get('clicks', 0)
-                    click_pattern = self.results.get('click_pattern', None)
-                    if not click_pattern:
-                        points_clicked = 0
-                        points_missed = 0
-                    else:
-                        points_clicked = click_pattern.count('1')
-                        points_missed = click_pattern.count('0')
 
-                    num_times_look_away = self.results.get('out_of_thres_counter', 0)
-                    false_positives = total_clicks - points_clicked
-                    
-                    accuracy = 0
-                    false_positive_rate = 0
-                    fixation_loss_rate = 0
-                    if total_points > 0:
-                        accuracy = (points_clicked / total_points) * 100
-                        false_positive_rate = (false_positives / total_points) * 100
-                        fixation_loss_rate = (num_times_look_away / total_points) * 100
-                    
-                    # Write rows
-                    file.write(f"Total points shown,{total_points}\n")
-                    file.write(f"Points detected,{points_clicked}\n")
-                    file.write(f"Points missed,{points_missed}\n")
-                    file.write(f"False button presses,{false_positives}\n")
-                    file.write(f"Detection accuracy,{accuracy:.1f}%\n")
-                    file.write(f"False positive rate,{false_positive_rate:.1f}%\n")
-                    file.write(f"Fixation loss rate,{fixation_loss_rate:.1f}%\n")
-                
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Success", f"Results saved to {file_path}")
-            
-            except Exception as e:
-                from PyQt6.QtWidgets import QMessageBox
-                QMessageBox.critical(self, "Error", f"Error saving results: {str(e)}")
+        dialog = SaveResultsDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        patient_name, admin_name = dialog.get_values()
+        metrics = self._calculate_metrics(self.results)
+
+        record_id = str(uuid4())
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        header = [
+            "UUID",
+            "DATE_TIME",
+            "PATIENT_NAME",
+            "ADMIN_NAME",
+            "TOTAL_POINTS_SHOWN",
+            "POINTS_DETECTED",
+            "POINTS_MISSED",
+            "FALSE_BUTTON_PRESSES",
+            "TIMES_LOOKED_AWAY",
+            "DETECTION_ACCURACY_PCT",
+            "FALSE_POSITIVE_RATE_PCT",
+            "FIXATION_LOSS_RATE_PCT",
+        ]
+
+        row = [
+            record_id,
+            timestamp,
+            patient_name,
+            admin_name,
+            metrics["total_points"],
+            metrics["points_clicked"],
+            metrics["points_missed"],
+            metrics["false_positives"],
+            metrics["num_times_look_away"],
+            round(metrics["accuracy"], 1),
+            round(metrics["false_positive_rate"], 1),
+            round(metrics["fixation_loss_rate"], 1),
+        ]
+
+        config = self.parent.config if self.parent and hasattr(self.parent, "config") else load_config()
+        gs_config = config.get("google_sheets", {})
+        if not gs_config.get("enabled"):
+            QMessageBox.warning(
+                self,
+                "Google Sheets Disabled",
+                "Google Sheets is disabled in config. Enable it and set credentials_path and spreadsheet_id.",
+            )
+            return
+
+        try:
+            append_row(
+                credentials_path=gs_config.get("credentials_path", ""),
+                spreadsheet_id=gs_config.get("spreadsheet_id", ""),
+                worksheet_name=gs_config.get("worksheet_name", "Results"),
+                row_values=[str(v) for v in row],
+                header=header,
+            )
+            QMessageBox.information(self, "Saved", "Results saved to Google Sheets.")
+        except GoogleSheetsError as e:
+            QMessageBox.critical(self, "Save Failed", str(e))
+        except Exception as e:
+            QMessageBox.critical(self, "Save Failed", f"Error saving results: {str(e)}")
     
     def start_new_test(self):
         """Start a new test"""
