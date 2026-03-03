@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import math
 import gc
+import sys
+import time
 
 from app.core.pupil_tracker_utils import EyeTrackerUtils
 
@@ -58,7 +60,7 @@ class EyeTracker():
         }
         
         # Initialize camera
-        self._initialize_camera()
+        self.camera_ready = self._initialize_camera()
 
     def process_frames(self, prev_threshold_index, threshold_swtich_confidence_margin, 
                     thresholded_image_strict, thresholded_image_medium, thresholded_image_relaxed, 
@@ -240,149 +242,73 @@ class EyeTracker():
         return processed_frame
 
     # def _initialize_camera(self):
-    #     """Initialize the webcam"""
-    #     try:
-    #         if self.vid_input:
-    #             self.cap = cv2.VideoCapture(0)  # Use default camera // NOT FIXED need to think of some realtive path maybe idk
-    #         else:
-    #             self.cap = cv2.VideoCapture(0)  # Use default camera
-
-    #         # Set 4K resolution (3840x2160)
-    #         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2560)
-    #         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1440)
-            
-    #         # Critical settings to reduce delay
-    #         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer size
-    #         self.cap.set(cv2.CAP_PROP_FPS, 60)  # Set frame rate
-            
-    #         # Try to disable auto-exposure for more consistent timing
-    #         self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75)  # Manual exposure
-    #         self.cap.set(cv2.CAP_PROP_EXPOSURE,3)  # Faster exposure
-
-    #         self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 0.6)  # Range: 0.0 to 1.0
-    #         self.cap.set(cv2.CAP_PROP_CONTRAST, 0.7)    # Range: 0.0 to 1.0
-            
-    #         # Additional performance settings
-    #         # self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))  # Use MJPEG codec
-            
-    #         # Verify the resolution was actually set
-    #         actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    #         actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    #         actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-    #         buffer_size = self.cap.get(cv2.CAP_PROP_BUFFERSIZE)
-    #         print(f"Resolution: {int(actual_width)}x{int(actual_height)}")
-    #         print(f"FPS: {actual_fps}, Buffer: {buffer_size}")
-            
-    #         if not self.cap.isOpened():
-    #             print("Error: Could not open camera.")
-    #             return False
-            
-    #         return True
-    #     except Exception as e:
-    #         print(f"Camera initialization error: {str(e)}")
-    #         return False
-
     def _initialize_camera(self):
-        """Initialize the Logitech Brio 4K with optimal quality settings for macOS"""
+        """Initialize camera using platform-appropriate backends."""
         try:
-            # Use AVFoundation backend (macOS native) instead of DirectShow
-            self.cap = cv2.VideoCapture(1, cv2.CAP_AVFOUNDATION)
-            
-            if not self.cap.isOpened():
-                print("AVFoundation backend failed, trying default")
-                # Fallback to default backend
-                self.cap = cv2.VideoCapture(0)
+            if sys.platform.startswith("win"):
+                backend_candidates = [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]
+            elif sys.platform == "darwin":
+                backend_candidates = [cv2.CAP_AVFOUNDATION, cv2.CAP_ANY]
+            else:
+                backend_candidates = [cv2.CAP_V4L2, cv2.CAP_ANY]
 
-            if not self.cap.isOpened():
-                print("Error: Could not open camera with any backend.")
+            index_candidates = [0, 1, 2]
+            self.cap = None
+
+            for index in index_candidates:
+                for backend in backend_candidates:
+                    cap = cv2.VideoCapture(index, backend)
+                    if not cap.isOpened():
+                        cap.release()
+                        continue
+                    self.cap = cap
+                    self.camera_index = index
+                    self.camera_backend = backend
+                    break
+                if self.cap and self.cap.isOpened():
+                    break
+
+            if not self.cap or not self.cap.isOpened():
+                print("Error: Could not open camera with any backend/index.")
                 return False
 
-            # Brio 4K limitations: 4K@30fps OR 1080p@60fps (not 4K@60fps)
-            # Choose based on your priority: resolution vs framerate
-            
-            # Low Power: High framerate (recommended for real-time applications)
-            width, height, fps = 1920, 1080, 60
-
-            # # Medium Power:
-            # # width, height, fps = 2560, 1440, 60
-            
-            # # High Power: High resolution (uncomment if you prefer 4K)
-            # # width, height, fps = 3840, 2160, 30
-            
-            # # Set resolution first
-            # self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-            # self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            
-            # # Set framerate
-            # self.cap.set(cv2.CAP_PROP_FPS, fps)
-            
-            # # Try MJPEG codec first (better for macOS and reduces bandwidth)
-            # self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
-            
-            # # Essential settings for quality
-            # self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimal buffering for low latency
-            
-            # # Auto-exposure settings (critical for good image quality)
-            # # 0.25 = 1/4 auto exposure (some control but not fully auto)
-            # self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-            # self.cap.set(cv2.CAP_PROP_EXPOSURE, -10) 
-            
-            # # Keep these neutral and let auto-exposure handle brightness
-            # self.cap.set(cv2.CAP_PROP_BRIGHTNESS, 0.7)
-            # self.cap.set(cv2.CAP_PROP_CONTRAST, 0.5) 
-            # self.cap.set(cv2.CAP_PROP_SATURATION, 0.0)
-            
-            # Minimize gain to reduce noise (this is crucial for graininess)
+            # Basic low-latency defaults (safe across backends)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self.cap.set(cv2.CAP_PROP_GAIN, 0)
-            
-            # White balance settings (if supported)
             try:
-                self.cap.set(cv2.CAP_PROP_AUTO_WB, 1)  # Enable auto white balance
-            except:
-                # Not all backends support this, ignore if it fails
+                self.cap.set(cv2.CAP_PROP_AUTO_WB, 1)
+            except Exception:
                 pass
-                
-            # Let camera stabilize with new settings
-            import time
-            time.sleep(2)
-            
-            # Flush buffer by reading several frames
-            for _ in range(10):
+
+            # Quick warm-up without long blocking
+            ret = False
+            for _ in range(3):
                 ret, _ = self.cap.read()
-                if not ret:
+                if ret:
                     break
-                    time.sleep(0.1)  # Small delay between reads
-                
-                # Verify final settings
+                time.sleep(0.05)
+
             actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
             fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
-            
-            # Decode fourcc
-            fourcc_str = ''.join([chr((fourcc >> 8*i) & 0xFF) for i in range(4)])
-            
-            print(f"Camera initialized successfully:")
-            print(f"  Resolution: {actual_width}x{actual_height} (requested: {width}x{height})")
-            print(f"  FPS: {actual_fps} (requested: {fps})")
+            fourcc_str = ''.join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)])
+
+            print("Camera initialized successfully:")
+            print(f"  Backend: {self.camera_backend}, Index: {self.camera_index}")
+            print(f"  Resolution: {actual_width}x{actual_height}")
+            print(f"  FPS: {actual_fps}")
             print(f"  Codec: {fourcc_str}")
-            
-            # Test frame quality
-            ret, test_frame = self.cap.read()
-            if ret:
-                print(f"  Frame shape: {test_frame.shape}")
-                print(f"  Frame quality - Mean: {test_frame.mean():.2f}, Std: {test_frame.std():.2f}")
-                
-                # Basic quality check
-                if test_frame.std() < 5:
-                    print("  ⚠️ Warning: Low frame variation detected (possible quality issue)")
-            
+
+            if not ret:
+                print("Warning: Camera opened but no frames received yet.")
+
             return True
-            
+
         except Exception as e:
             print(f"Camera initialization error: {str(e)}")
             return False
-        
+
     def lockpos(self, frame, final_contours):
         """Process pupil position and send appropriate commands to Arduino
         
