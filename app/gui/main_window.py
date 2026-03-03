@@ -387,34 +387,34 @@ class MainWindow(QMainWindow):
     
     def show_calibration_view(self):
         """Switch to calibration view"""
-        self.header_frame.show()
-        self.menuBar().show()
-        self.status_bar.show()
-        self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
-        self.content_container.setStyleSheet("")
+        self.header_frame.hide()
+        self.menuBar().hide()
+        self.status_bar.hide()
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.central_widget.setStyleSheet("background-color: #ffffff;")
+        self.content_container.setStyleSheet("background-color: #ffffff;")
         self.header_text.setText("Eye Position Calibration")
         self.stacked_widget.setCurrentWidget(self.calibration_view)
     
     def show_test_view(self):
         """Switch to test view"""
-        self.header_frame.show()
-        self.menuBar().show()
-        self.status_bar.show()
-        self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
-        self.content_container.setStyleSheet("")
+        self.header_frame.hide()
+        self.menuBar().hide()
+        self.status_bar.hide()
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.central_widget.setStyleSheet("background-color: #ffffff;")
+        self.content_container.setStyleSheet("background-color: #ffffff;")
         self.header_text.setText("Visual Field Test")
         self.stacked_widget.setCurrentWidget(self.test_view)
     
     def show_results_view(self, results=None):
         """Switch to results view"""
-        self.header_frame.show()
-        self.menuBar().show()
-        self.status_bar.show()
-        self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
-        self.content_container.setStyleSheet("")
+        self.header_frame.hide()
+        self.menuBar().hide()
+        self.status_bar.hide()
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.central_widget.setStyleSheet("background-color: #ffffff;")
+        self.content_container.setStyleSheet("background-color: #ffffff;")
         self.header_text.setText("Test Results")
         if results:
             self.results_view.set_results(results)
