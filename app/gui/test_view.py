@@ -50,7 +50,7 @@ class TestView(QWidget):
         # Title and Help Button Row
         title_layout = QHBoxLayout()
         
-        # Title
+        # Title3
         title_label = QLabel("Visual Field Test in Progress")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
