@@ -111,14 +111,18 @@ class ArduinoTracker:
             port_description = port_info.description.lower()
             
             # Debug output
-            print(f"Port: {port_device}, Description: {port_description}")
+            print(f"Port: {port_device}, Description: {port_description}, HWID: {port_info.hwid}")
             
             # Check if any identifier matches the port description
-            if any(identifier in port_description for identifier in self.port_identifiers):
+            # if any(identifier in port_description for identifier in self.port_identifiers):
+            #     arduino_ports.append({
+            #         'port': port_device,
+            #         'description': port_info.description
+            #     })
+            if port_info.vid==6790:
                 arduino_ports.append({
                     'port': port_device,
-                    'description': port_info.description
-                })
+                    'description': port_info.description})
         
         return arduino_ports
 

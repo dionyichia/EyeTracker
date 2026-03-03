@@ -5,7 +5,7 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtWidgets import (
     QMainWindow, QStackedWidget, QWidget, QVBoxLayout, 
     QPushButton, QLabel, QMessageBox, QStatusBar, QHBoxLayout,
-    QFrame
+    QFrame,QSizePolicy
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QAction, QKeySequence, QGuiApplication
@@ -17,6 +17,7 @@ from app.core.pupil_tracker import EyeTracker
 from app.core.arduino_tracker import ArduinoTracker
 
 from app.gui.widgets.help_popup import HelpPopup 
+from app.gui.widgets.eye_logo import BlinkingEyeWidget
 
 class MainWindow(QMainWindow):
     """Main application window for the EyeTracker application"""
@@ -134,6 +135,55 @@ class MainWindow(QMainWindow):
                 padding: 0 10px;
                 color: {self.app_colors["primary"]};
             }}
+            QWidget#welcomeHero {{
+                background-color: #ffffff;
+            }}
+            QFrame#welcomeCard {{
+                background-color: #ffffff;
+                border-radius: 0px;
+                border: none;
+            }}
+            QLabel#welcomeTitle {{
+                font-size: 40px;
+                font-weight: 700;
+                color: #1f2a37;
+            }}
+            QLabel#welcomeSubtitle {{
+                font-size: 18px;
+                color: #607089;
+            }}
+            QLabel#welcomeTagline {{
+                font-size: 15px;
+                color: #3f4e63;
+            }}
+            QPushButton#welcomePrimary {{
+                background-color: #ffffff;
+                color: #111111;
+                border: 2px solid #111111;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 17px;
+                padding: 10px 16px;
+                min-height: 42px;
+                min-width: 170px;
+            }}
+            QPushButton#welcomePrimary:hover {{
+                background-color: #f2f2f2;
+            }}
+            QPushButton#welcomeSecondary {{
+                background-color: #ffffff;
+                color: #111111;
+                border: 2px solid #111111;
+                border-radius: 10px;
+                font-weight: bold;
+                font-size: 16px;
+                padding: 10px 14px;
+                min-height: 42px;
+                min-width: 120px;
+            }}
+            QPushButton#welcomeSecondary:hover {{
+                background-color: #f2f2f2;
+            }}
         """)
         
         # Create central widget with stacked layout for different views
@@ -236,99 +286,69 @@ class MainWindow(QMainWindow):
     def create_welcome_view(self):
         """Create the welcome view"""
         welcome_widget = QWidget()
-        welcome_widget.setStyleSheet(f"""
-            background-color: {self.app_colors["white"]};
-            border-radius: 8px;
-        """)
-        
+        welcome_widget.setObjectName("welcomeHero")
+
         layout = QVBoxLayout(welcome_widget)
-        layout.setContentsMargins(30, 40, 30, 40)
-        layout.setSpacing(20)
-        
-        # Welcome container
-        welcome_container = QFrame()
-        welcome_container.setStyleSheet("""
-            background-color: #f5f5f5;
-            border-radius: 8px;
-            padding: 20px;
-        """)
-        welcome_layout = QVBoxLayout(welcome_container)
-        welcome_layout.setSpacing(20)
-        
-        # Welcome Header with help button
-        header_layout = QtWidgets.QHBoxLayout()
-        
-        # Welcome label
-        welcome_label = QtWidgets.QLabel("Welcome to EyeTracker")
-        welcome_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setStyleSheet("""
-            font-size: 32px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin: 20px;
-        """)
-        header_layout.addWidget(welcome_label)
-        
-        # Help button
-        help_button = QtWidgets.QPushButton("Help!")
-        help_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                border-radius: 20px;
-                font-size: 18px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        help_button.clicked.connect(self.show_help_popup)
-        header_layout.addWidget(help_button, alignment=QtCore.Qt.AlignmentFlag.AlignTop | QtCore.Qt.AlignmentFlag.AlignRight)
-        
-        welcome_layout.addLayout(header_layout)
-        # Description label
-        description = (
-            "This application assists in administering the Humphrey Visual Field Test "
-            "by tracking patient eye position and movement.\n\n"
-            "To begin, please connect your Arduino device and eye tracking camera."
-        )
-        desc_label = QLabel(description)
-        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("""
-            font-size: 16px;
-            color: #34495e;
-            margin: 10px 30px;
-            line-height: 1.5;
-        """)
-        welcome_layout.addWidget(desc_label)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addStretch()
 
-        welcome_layout.addStretch()
-        
-        # Connect button
+        card = QFrame()
+        card.setObjectName("welcomeCard")
+        card.setMaximumWidth(900)
+
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(48, 40, 48, 36)
+        card_layout.setSpacing(12)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        eye_logo = BlinkingEyeWidget()
+        eye_logo.setFixedHeight(160)
+        eye_logo.setMaximumWidth(360)
+        card_layout.addWidget(eye_logo, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        title = QLabel("EyeTracker")
+        title.setObjectName("welcomeTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(title)
+
+        subtitle = QLabel("Humphrey's Visual Field Test Assistant")
+        subtitle.setObjectName("welcomeSubtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(subtitle)
+
+        tagline = QLabel("Know the test. Practice the clicks. Feel Humphrey-ready.")
+        tagline.setObjectName("welcomeTagline")
+        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        tagline.setWordWrap(True)
+        tagline.setMaximumWidth(560)
+        card_layout.addWidget(tagline)
+
+        button_row = QWidget()
+        button_row.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        buttons_layout = QHBoxLayout(button_row)
+        buttons_layout.setContentsMargins(0, 16, 0, 0)
+        buttons_layout.setSpacing(16)
+        buttons_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
         connect_button = QPushButton("Connect Devices")
-        connect_button.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {self.app_colors["secondary"]};
-                color: {self.app_colors["white"]};
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 16px;
-                padding: 12px;
-                min-height: 50px;
-            }}
-
-            QPushButton:hover {{
-                background-color: #4f515a;
-            }}
-        """)
+        connect_button.setObjectName("welcomePrimary")
+        connect_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         connect_button.clicked.connect(self.connect_devices)
-        welcome_layout.addWidget(connect_button)
-        
-        layout.addWidget(welcome_container)     
+
+        help_button = QPushButton("Help")
+        help_button.setObjectName("welcomeSecondary")
+        help_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        help_button.clicked.connect(self.show_help_popup)
+
+        buttons_layout.addWidget(connect_button)
+        buttons_layout.addWidget(help_button)
+
+        card_layout.addWidget(button_row, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        layout.addWidget(card, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch()
+
         return welcome_widget
 
     def show_help_popup(self):
@@ -356,21 +376,45 @@ class MainWindow(QMainWindow):
     
     def show_welcome_view(self):
         """Switch to welcome view"""
+        self.header_frame.hide()
+        self.menuBar().hide()
+        self.status_bar.hide()
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.central_widget.setStyleSheet("background-color: #ffffff;")
+        self.content_container.setStyleSheet("background-color: #ffffff;")
         self.header_text.setText("Visual Field Test Assistant")
         self.stacked_widget.setCurrentWidget(self.welcome_view)
     
     def show_calibration_view(self):
         """Switch to calibration view"""
+        self.header_frame.show()
+        self.menuBar().show()
+        self.status_bar.show()
+        self.content_layout.setContentsMargins(20, 20, 20, 20)
+        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
+        self.content_container.setStyleSheet("")
         self.header_text.setText("Eye Position Calibration")
         self.stacked_widget.setCurrentWidget(self.calibration_view)
     
     def show_test_view(self):
         """Switch to test view"""
+        self.header_frame.show()
+        self.menuBar().show()
+        self.status_bar.show()
+        self.content_layout.setContentsMargins(20, 20, 20, 20)
+        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
+        self.content_container.setStyleSheet("")
         self.header_text.setText("Visual Field Test")
         self.stacked_widget.setCurrentWidget(self.test_view)
     
     def show_results_view(self, results=None):
         """Switch to results view"""
+        self.header_frame.show()
+        self.menuBar().show()
+        self.status_bar.show()
+        self.content_layout.setContentsMargins(20, 20, 20, 20)
+        self.central_widget.setStyleSheet(f"background-color: {self.app_colors['light']};")
+        self.content_container.setStyleSheet("")
         self.header_text.setText("Test Results")
         if results:
             self.results_view.set_results(results)
@@ -391,7 +435,15 @@ class MainWindow(QMainWindow):
             
             # Initialize eye tracker
             self.eye_tracker = EyeTracker(arduino_tracker=self.arduino_tracker)
-            
+            if not self.eye_tracker.camera_ready:
+                self.status_bar.showMessage("Camera connection failed")
+                QMessageBox.critical(
+                    self,
+                    "Camera Error",
+                    "Could not open the camera. Please check that it is connected and not in use by another app."
+                )
+                return
+
             if self.arduino_tracker.is_connected():
                 self.is_connected = True
                 self.status_bar.showMessage("Connected to devices")
