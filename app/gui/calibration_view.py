@@ -2,8 +2,8 @@
 Calibration view for the EyeTracker application
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QSlider, QGroupBox, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QSlider, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect, QPoint
 from PyQt6.QtGui import QColor, QPen
@@ -52,226 +52,173 @@ class CalibrationView(QWidget):
     
     def setup_ui(self):
         """Set up the user interface"""
-        main_layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(18)
 
-        # Title and Help Button Row
-        title_layout = QHBoxLayout()
-        
-        # Title
-        title_label = QLabel("Eye Position Calibration")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Help button
-        help_button = QPushButton("Help")
-        help_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
-                font-weight: bold;
-                max-width: 60px;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
-        help_button.clicked.connect(self.show_help)
-        
-        title_layout.addStretch()
-        title_layout.addWidget(title_label)
-        title_layout.addStretch()
-        title_layout.addWidget(help_button)
-        
-        # Main content area with video feed and controls
-        content_layout = QHBoxLayout()
-        
-        # Video feed
+        # Video feed (left)
         self.video_widget = VideoWidget()
-        self.video_widget.setMinimumSize(640, 480)
+        self.video_widget.setMinimumSize(600, 440)
         self.video_widget.mousePressEvent = self.on_video_mouse_press
         self.video_widget.mouseMoveEvent = self.on_video_mouse_move
         self.video_widget.mouseReleaseEvent = self.on_video_mouse_release
         self.video_widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.video_widget.keyPressEvent = self.on_video_key_press
-        # Set external paint function to draw zoom overlay
         self.video_widget.external_paint = self.on_video_paint
-        content_layout.addWidget(self.video_widget, 3)
-        
-        # Controls
-        controls_layout = QVBoxLayout()
-        controls_layout.addLayout(title_layout)
+        main_layout.addWidget(self.video_widget, 3)
 
-        # Zoom control
-        zoom_group = QGroupBox("Zoom Adjustment")
-        zoom_group.setStyleSheet("""
-            QGroupBox {
+        # Right panel (scrollable)
+        button_style = """
+            QPushButton {
+                background-color: #ffffff;
+                color: #111111;
+                border: 1px solid #111111;
+                border-radius: 7px;
                 font-weight: bold;
-                border: 2px solid #cccccc;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
+                font-size: 13px;
+                padding: 6px 10px;
+                min-height: 32px;
             }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
+            QPushButton:hover {
+                background-color: #f5f5f5;
             }
-        """)
-        zoom_layout = QVBoxLayout(zoom_group)
-        
+            QPushButton:disabled {
+                color: #888888;
+                border-color: #888888;
+                background-color: #f7f7f7;
+            }
+        """
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setMinimumWidth(300)
+        scroll_area.setMaximumWidth(360)
+        scroll_area.setStyleSheet("background-color: #ffffff;")
+
+        panel = QFrame()
+        panel.setStyleSheet(
+            "background-color: #f7f7f7; border-radius: 12px; padding: 4px;"
+        )
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(16, 16, 16, 16)
+        panel_layout.setSpacing(12)
+
+        # Header row (title + help)
+        header_row = QHBoxLayout()
+        header_title = QLabel("Calibration Settings")
+        header_title.setStyleSheet("font-size: 15px; font-weight: bold;")
+        header_row.addWidget(header_title)
+        header_row.addStretch()
+        help_button = QPushButton("Help")
+        help_button.setStyleSheet(button_style)
+        help_button.clicked.connect(self.show_help)
+        help_button.setFixedWidth(78)
+        header_row.addWidget(help_button)
+        panel_layout.addLayout(header_row)
+
+        underline = QFrame()
+        underline.setFrameShape(QFrame.Shape.HLine)
+        underline.setFixedHeight(1)
+        underline.setStyleSheet("background-color: #e0e0e0;")
+        panel_layout.addWidget(underline)
+
+        # Section: Zoom Adjustment
+        zoom_title = QLabel("Zoom Adjustment")
+        zoom_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(zoom_title)
+
         zoom_label = QLabel("Adjust zoom factor:")
-        zoom_layout.addWidget(zoom_label)
-        
+        panel_layout.addWidget(zoom_label)
+
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setMinimum(1)
         self.zoom_slider.setMaximum(30)
         self.zoom_slider.setValue(self.zoom_factor)
         self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
-        zoom_layout.addWidget(self.zoom_slider)
-        
+        panel_layout.addWidget(self.zoom_slider)
+
         self.zoom_factor_label = QLabel(f"Current: {self.zoom_factor}x")
-        zoom_layout.addWidget(self.zoom_factor_label)
-        
+        self.zoom_factor_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.zoom_factor_label)
+
         zoom_buttons_layout = QHBoxLayout()
         self.set_zoom_btn = QPushButton("Set Zoom")
-        self.set_zoom_btn.setMinimumHeight(20)
-        self.set_zoom_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.set_zoom_btn.setStyleSheet(button_style)
         self.set_zoom_btn.clicked.connect(self.set_zoom)
-        self.set_zoom_btn.setEnabled(False)  # Enabled when zoom factor > 1
+        self.set_zoom_btn.setEnabled(False)
+        self.set_zoom_btn.setFixedWidth(120)
         zoom_buttons_layout.addWidget(self.set_zoom_btn)
-        
+
         self.reset_zoom_btn = QPushButton("Reset Zoom")
-        self.reset_zoom_btn.setMinimumHeight(20)
-        self.reset_zoom_btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.reset_zoom_btn.setStyleSheet(button_style)
         self.reset_zoom_btn.clicked.connect(self.reset_zoom)
-        self.reset_zoom_btn.setEnabled(False)  # Enabled after zoom is applied
+        self.reset_zoom_btn.setEnabled(False)
+        self.reset_zoom_btn.setFixedWidth(120)
         zoom_buttons_layout.addWidget(self.reset_zoom_btn)
-        
-        zoom_layout.addLayout(zoom_buttons_layout)
-        controls_layout.addWidget(zoom_group)
-        
-        # Combined Threshold Controls
-        threshold_group = QGroupBox("Detection Thresholds")
-        threshold_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #cccccc;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        threshold_layout = QVBoxLayout(threshold_group)
-        
-        # Pupil Detection Threshold
+        panel_layout.addLayout(zoom_buttons_layout)
+
+        # Section: Detection Thresholds
+        thresholds_title = QLabel("Detection Thresholds")
+        thresholds_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(thresholds_title)
+
         pupil_threshold_label = QLabel("Pupil Detection Threshold:")
-        pupil_threshold_label.setStyleSheet("font-weight: normal; margin-top: 5px;")
-        threshold_layout.addWidget(pupil_threshold_label)
-        
+        panel_layout.addWidget(pupil_threshold_label)
+
         self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
         self.threshold_slider.setMinimum(0)
         self.threshold_slider.setMaximum(100)
         self.threshold_slider.setValue(self.threshold_value)
         self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
-        threshold_layout.addWidget(self.threshold_slider)
-        
+        panel_layout.addWidget(self.threshold_slider)
+
         self.threshold_value_label = QLabel(f"Current: {self.threshold_value}")
-        self.threshold_value_label.setStyleSheet("font-weight: normal; color: #666; margin-bottom: 10px;")
-        threshold_layout.addWidget(self.threshold_value_label)
-        
-        # Confidence Switch Margin
+        self.threshold_value_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.threshold_value_label)
+
         confidence_margin_label = QLabel("Confidence Switch Margin:")
-        confidence_margin_label.setStyleSheet("font-weight: normal; margin-top: 5px;")
-        threshold_layout.addWidget(confidence_margin_label)
-        
+        panel_layout.addWidget(confidence_margin_label)
+
         self.confidence_margin_slider = QSlider(Qt.Orientation.Horizontal)
         self.confidence_margin_slider.setMinimum(0)
         self.confidence_margin_slider.setMaximum(10)
         self.confidence_margin_slider.setValue(self.confidence_margin)
         self.confidence_margin_slider.valueChanged.connect(self.on_confidence_margin_changed)
-        threshold_layout.addWidget(self.confidence_margin_slider)
-        
+        panel_layout.addWidget(self.confidence_margin_slider)
+
         self.confidence_margin_label = QLabel(f"Current: {self.confidence_margin}")
-        self.confidence_margin_label.setStyleSheet("font-weight: normal; color: #666;")
-        threshold_layout.addWidget(self.confidence_margin_label)
-        
-        controls_layout.addWidget(threshold_group)
-        
-        # Calibration control
-        calibration_group = QGroupBox("Calibration")
-        calibration_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #cccccc;
-                border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        calibration_layout = QVBoxLayout(calibration_group)
-        
+        self.confidence_margin_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.confidence_margin_label)
+
+        # Section: Calibration
+        calibration_title = QLabel("Calibration")
+        calibration_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(calibration_title)
+
         self.set_position_btn = QPushButton("Set Position (L)")
-        self.set_position_btn.setStyleSheet("""
-            QPushButton {
-                padding: 8px;
-                border-radius: 4px;
-                border: 1px solid #ccc;
-            }
-        """)
+        self.set_position_btn.setStyleSheet(button_style)
         self.set_position_btn.clicked.connect(self.set_position)
-        calibration_layout.addWidget(self.set_position_btn)
-        
+        self.set_position_btn.setFixedWidth(160)
+        panel_layout.addWidget(self.set_position_btn)
+
         self.calibration_status = QLabel("Status: Not calibrated")
-        self.calibration_status.setStyleSheet("font-weight: normal; color: #666; margin-top: 5px;")
-        calibration_layout.addWidget(self.calibration_status)
-        
-        controls_layout.addWidget(calibration_group)
-        
-        # Add spacer
-        controls_layout.addStretch()
-        
+        panel_layout.addWidget(self.calibration_status)
+
         # Start test button
         self.start_test_btn = QPushButton("Start Test")
-        self.start_test_btn.setMinimumHeight(50)
-        self.start_test_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #219a52;
-            }
-            QPushButton:disabled {
-                background-color: #bdc3c7;
-                color: #7f8c8d;
-            }
-        """)
-        self.start_test_btn.setEnabled(False)  # Disabled until calibrated
+        self.start_test_btn.setStyleSheet(button_style)
+        self.start_test_btn.setEnabled(False)
         self.start_test_btn.clicked.connect(self.on_start_test)
-        controls_layout.addWidget(self.start_test_btn)
-        
-        # Add controls to content layout
-        content_layout.addLayout(controls_layout, 1)
-        
-        # Add content to main layout
-        main_layout.addLayout(content_layout)
+        self.start_test_btn.setFixedWidth(120)
+        panel_layout.addWidget(self.start_test_btn)
+
+        panel_layout.addStretch()
+
+        scroll_area.setWidget(panel)
+        main_layout.addWidget(scroll_area, 1)
 
     def show_help(self):
         """Show the help popup for calibration"""

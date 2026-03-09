@@ -2,8 +2,8 @@
 Test view for the EyeTracker application
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QProgressBar, QGroupBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QProgressBar, QScrollArea, QSlider, QFrame
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
@@ -45,109 +45,243 @@ class TestView(QWidget):
     
     def setup_ui(self):
         """Set up the user interface"""
-        main_layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
+        main_layout.setContentsMargins(18, 18, 18, 18)
+        main_layout.setSpacing(18)
 
-        # Title and Help Button Row
-        title_layout = QHBoxLayout()
-        
-        # Title
-        title_label = QLabel("Visual Field Test in Progress")
-        title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # main_layout.addWidget(title_label)
+        # Video feed (left)
+        self.video_widget = VideoWidget()
+        self.video_widget.setMinimumSize(600, 440)
+        main_layout.addWidget(self.video_widget, 3)
 
-        # Help button
-        help_button = QPushButton("Help")
-        help_button.setStyleSheet("""
+        # Right panel (scrollable)
+        button_style = """
             QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
+                background-color: #ffffff;
+                color: #111111;
+                border: 1px solid #111111;
+                border-radius: 7px;
                 font-weight: bold;
-                max-width: 60px;
+                font-size: 13px;
+                padding: 6px 10px;
+                min-height: 32px;
             }
             QPushButton:hover {
-                background-color: #2980b9;
+                background-color: #f5f5f5;
             }
-        """)
-        help_button.clicked.connect(self.show_help)
-        
-        title_layout.addStretch()
-        title_layout.addWidget(title_label)
-        title_layout.addStretch()
-        title_layout.addWidget(help_button)
-        
-        # Main content area with video feed and status
-        content_layout = QHBoxLayout()
-        
-        # Video feed
-        self.video_widget = VideoWidget()
-        self.video_widget.setMinimumSize(640, 480)
-        content_layout.addWidget(self.video_widget, 3)
-        
-        # Test status and controls
-        status_layout = QVBoxLayout()
+        """
 
-        status_layout.addLayout(title_layout)
-        
-        # Test progress
-        progress_group = QGroupBox("Test Progress")
-        progress_layout = QVBoxLayout(progress_group)
-        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setMinimumWidth(300)
+        scroll_area.setMaximumWidth(360)
+        scroll_area.setStyleSheet("background-color: #ffffff;")
+
+        panel = QFrame()
+        panel.setStyleSheet(
+            "background-color: #f7f7f7; border-radius: 12px; padding: 4px;"
+        )
+        panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(16, 16, 16, 16)
+        panel_layout.setSpacing(12)
+
+        # Header row (title + help)
+        header_row = QHBoxLayout()
+        header_title = QLabel("Test Controls")
+        header_title.setStyleSheet("font-size: 15px; font-weight: bold;")
+        header_row.addWidget(header_title)
+        header_row.addStretch()
+        help_button = QPushButton("Help")
+        help_button.setStyleSheet(button_style)
+        help_button.clicked.connect(self.show_help)
+        help_button.setFixedWidth(78)
+        header_row.addWidget(help_button)
+        panel_layout.addLayout(header_row)
+
+        underline = QFrame()
+        underline.setFrameShape(QFrame.Shape.HLine)
+        underline.setFixedHeight(1)
+        underline.setStyleSheet("background-color: #e0e0e0;")
+        panel_layout.addWidget(underline)
+
+        # Section: Zoom Adjustment
+        zoom_title = QLabel("Zoom Adjustment")
+        zoom_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(zoom_title)
+
+        zoom_label = QLabel("Adjust zoom factor:")
+        panel_layout.addWidget(zoom_label)
+
+        self.zoom_factor = 1
+        self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
+        self.zoom_slider.setMinimum(1)
+        self.zoom_slider.setMaximum(30)
+        self.zoom_slider.setValue(self.zoom_factor)
+        self.zoom_slider.valueChanged.connect(self.on_zoom_changed)
+        panel_layout.addWidget(self.zoom_slider)
+
+        self.zoom_factor_label = QLabel(f"Current: {self.zoom_factor}x")
+        self.zoom_factor_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.zoom_factor_label)
+
+        zoom_buttons = QHBoxLayout()
+        self.set_zoom_btn = QPushButton("Set Zoom")
+        self.set_zoom_btn.setStyleSheet(button_style)
+        self.set_zoom_btn.clicked.connect(self.set_zoom)
+        self.set_zoom_btn.setFixedWidth(120)
+        zoom_buttons.addWidget(self.set_zoom_btn)
+
+        self.reset_zoom_btn = QPushButton("Reset Zoom")
+        self.reset_zoom_btn.setStyleSheet(button_style)
+        self.reset_zoom_btn.clicked.connect(self.reset_zoom)
+        self.reset_zoom_btn.setFixedWidth(120)
+        zoom_buttons.addWidget(self.reset_zoom_btn)
+        panel_layout.addLayout(zoom_buttons)
+
+        # Section: Detection Thresholds
+        thresholds_title = QLabel("Detection Thresholds")
+        thresholds_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(thresholds_title)
+
+        self.threshold_value = 48
+        threshold_label = QLabel("Pupil Detection Threshold:")
+        panel_layout.addWidget(threshold_label)
+
+        self.threshold_slider = QSlider(Qt.Orientation.Horizontal)
+        self.threshold_slider.setMinimum(0)
+        self.threshold_slider.setMaximum(100)
+        self.threshold_slider.setValue(self.threshold_value)
+        self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
+        panel_layout.addWidget(self.threshold_slider)
+
+        self.threshold_value_label = QLabel(f"Current: {self.threshold_value}")
+        self.threshold_value_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.threshold_value_label)
+
+        self.confidence_margin = 2
+        confidence_label = QLabel("Confidence Switch Margin:")
+        panel_layout.addWidget(confidence_label)
+
+        self.confidence_margin_slider = QSlider(Qt.Orientation.Horizontal)
+        self.confidence_margin_slider.setMinimum(0)
+        self.confidence_margin_slider.setMaximum(10)
+        self.confidence_margin_slider.setValue(self.confidence_margin)
+        self.confidence_margin_slider.valueChanged.connect(self.on_confidence_margin_changed)
+        panel_layout.addWidget(self.confidence_margin_slider)
+
+        self.confidence_margin_label = QLabel(f"Current: {self.confidence_margin}")
+        self.confidence_margin_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.confidence_margin_label)
+
+        # Section: Calibration
+        calibration_title = QLabel("Calibration")
+        calibration_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(calibration_title)
+
+        self.set_position_btn = QPushButton("Set Position (L)")
+        self.set_position_btn.setStyleSheet(button_style)
+        self.set_position_btn.clicked.connect(self.set_position)
+        self.set_position_btn.setFixedWidth(160)
+        panel_layout.addWidget(self.set_position_btn)
+
+        self.calibration_status = QLabel("Status: Not calibrated")
+        self.calibration_status.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.calibration_status)
+
+        # Section: Test Progress
+        progress_title = QLabel("Test Progress")
+        progress_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(progress_title)
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)  # Will be updated when test starts
+        self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(0)
-        progress_layout.addWidget(self.progress_bar)
-        
+        panel_layout.addWidget(self.progress_bar)
+
         self.progress_label = QLabel("Points: 0 / 0")
-        progress_layout.addWidget(self.progress_label)
+        self.progress_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.progress_label)
 
         self.clicks_label = QLabel("Clicks Made: 0")
-        progress_layout.addWidget(self.clicks_label)
+        self.clicks_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.clicks_label)
 
         self.successful_detections_label = QLabel("Successful Detections: 0")
-        progress_layout.addWidget(self.successful_detections_label)
-        
-        status_layout.addWidget(progress_group)
-        
-        # Live status
-        status_group = QGroupBox("Live Status")
-        status_group_layout = QVBoxLayout(status_group)
-        
-        # Eye position status
+        self.successful_detections_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.successful_detections_label)
+
+        # Section: Live Status
+        status_title = QLabel("Live Status")
+        status_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        panel_layout.addWidget(status_title)
+
         self.eye_position_label = QLabel("Eye Position: OK")
         self.eye_position_label.setStyleSheet("font-weight: bold; color: green;")
-        status_group_layout.addWidget(self.eye_position_label)
-        
-        # Last action status
+        panel_layout.addWidget(self.eye_position_label)
+
         self.last_action_label = QLabel("Waiting for test to start...")
-        status_group_layout.addWidget(self.last_action_label)
-        
-        status_layout.addWidget(status_group)
-        
-        # Add spacer
-        status_layout.addStretch()
-        
-        # Stop test button
+        self.last_action_label.setStyleSheet("color: #6b7280; font-size: 12px;")
+        panel_layout.addWidget(self.last_action_label)
+
+        # Stop test button (bottom)
         self.stop_test_btn = QPushButton("Stop Test")
-        self.stop_test_btn.setMinimumHeight(50)
+        self.stop_test_btn.setStyleSheet(button_style)
         self.stop_test_btn.clicked.connect(self.stop_test)
-        status_layout.addWidget(self.stop_test_btn)
-        
-        # Add status layout to content layout
-        content_layout.addLayout(status_layout, 1)
-        
-        # Add content to main layout
-        main_layout.addLayout(content_layout)
+        self.stop_test_btn.setFixedWidth(120)
+        panel_layout.addWidget(self.stop_test_btn)
+
+        panel_layout.addStretch()
+
+        scroll_area.setWidget(panel)
+        main_layout.addWidget(scroll_area, 1)
 
     def show_help(self):
         """Show the help popup for test phase"""
         self.help_popup = HelpPopup(self, phase="test", current_power_mode=self.parent.current_power_mode, 
                                     external_power_mode_slot=self.parent.on_power_mode_changed)
         self.help_popup.show()
+
+    def on_zoom_changed(self, value):
+        """Handle zoom slider change."""
+        self.zoom_factor = value
+        self.zoom_factor_label.setText(f"Current: {value}x")
+
+    def set_zoom(self):
+        """Apply zoom to the eye tracker."""
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.set_zoom(self.zoom_factor)
+
+    def reset_zoom(self):
+        """Reset zoom to default."""
+        self.zoom_factor = 1
+        self.zoom_slider.setValue(1)
+        self.zoom_factor_label.setText("Current: 1x")
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.set_zoom(1)
+
+    def on_threshold_changed(self, value):
+        """Handle threshold slider change."""
+        self.threshold_value = value
+        self.threshold_value_label.setText(f"Current: {value}")
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.set_threshold(value)
+
+    def on_confidence_margin_changed(self, value):
+        """Handle confidence margin slider change."""
+        self.confidence_margin = value
+        self.confidence_margin_label.setText(f"Current: {value}")
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.set_confidence_margin(value)
+
+    def set_position(self):
+        """Lock the current eye position."""
+        if self.parent and hasattr(self.parent, 'eye_tracker') and self.parent.eye_tracker:
+            self.parent.eye_tracker.lock_position()
+            self.calibration_status.setText("Status: Calibrated")
     
     def update_video_feed(self):
         """Update the video feed with the current frame"""

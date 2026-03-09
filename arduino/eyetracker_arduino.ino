@@ -4,8 +4,8 @@
 // Pin definitions
 const int buzzer_pin = 3;
 const int button_pin = 5;   // Active high, connect other end into ground
-const int servo1 = 9;       // first servo, grey wire
-const int servo2 = 10;      // second servo, blue wire
+const int servo1 = 10;       // first servo, grey wire
+const int servo2 = 11;      // second servo, blue wire
 const int led_pin = 12;
 const int laser_pin = 13;
 
@@ -74,7 +74,51 @@ Servo myservo2;
 
 // Laser point coordinates (4 points): (Y-axis: 0 (top) - 180 (bottom), X-axis: 0 (right) - 180 (left)) 
 // int myPoints[4][2] = {{75, 110}, {70, 60}, {20, 60}, {30, 110}}; 
-int myPoints[8][2] = {{13,90}, {13,55}, {39,55}, {70,55}, {20,130}, {45,130}, {70,129}, {70,90}};
+int myPoints[][2] = {
+    {74, 8},
+    {29, 52},
+    {61, 10},
+    {43, 5},
+    {83, 41},
+    {20, 11},
+    {52, 33},
+    {67, 19},
+    {88, 3},
+    {35, 44},
+
+    {57, 27},
+    {24, 58},
+    {31, 14},
+    {90, 14},
+    {55, 6},
+    {22, 18},
+    {79, 55},
+    {46, 9},
+    {62, 46},
+    {50, 25},
+
+    {41, 60},
+    {82, 1},
+    {28, 7},
+    {58, 33},
+    {54, 2},
+    {69, 14},
+    {18, 49},
+    {76, 4},
+    {17, 0},
+    {55, 50},
+
+    {33, 28},
+    {90, 18},
+    {23, 4},
+    {64, 50},
+    {55, 13},
+    {71, 60},
+    {57, 12},
+    {39, 1},
+    {86, 22},
+    {63, 0}
+};
 const int numPoints = sizeof(myPoints) / sizeof(myPoints[0]); 
 char click_tracker[numPoints];
 int click_counter = 0;
@@ -428,5 +472,3 @@ void runTestLogic(unsigned long current_time) {
     }
   }
 }
-
-

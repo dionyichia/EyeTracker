@@ -122,8 +122,7 @@ class ArduinoTracker:
             if port_info.vid==6790:
                 arduino_ports.append({
                     'port': port_device,
-                    'description': port_info.description
-                })
+                    'description': port_info.description})
         
         return arduino_ports
 
