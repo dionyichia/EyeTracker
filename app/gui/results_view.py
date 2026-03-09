@@ -220,13 +220,14 @@ class ResultsView(QWidget):
         total_points = results.get('points_shown', 0)
         total_clicks = results.get('clicks', 0)
         click_pattern = results.get('click_pattern') or ""
+        shown_click_pattern = click_pattern[:total_points]
 
-        if click_pattern:
-            points_clicked = click_pattern.count('1')
-            points_missed = click_pattern.count('0')
+        if shown_click_pattern:
+            points_clicked = shown_click_pattern.count('1')
+            points_missed = max(total_points - points_clicked, 0)
         else:
             points_clicked = 0
-            points_missed = 0
+            points_missed = total_points
 
         num_times_look_away = results.get('out_of_thres_counter', 0)
         false_positives = max(total_clicks - points_clicked, 0)
