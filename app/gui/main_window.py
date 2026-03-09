@@ -422,21 +422,36 @@ class MainWindow(QMainWindow):
     
     def connect_devices(self):
         """Connect to Arduino and camera"""
-        try:            
+        arduino_tracker = None
+        eye_tracker = None
+
+        try:
             # Show connecting message
             self.status_bar.showMessage("Connecting to devices...")
+            self.is_connected = False
             
             # Initialize Arduino tracker with port selection callback
-            self.arduino_tracker = ArduinoTracker(
+            arduino_tracker = ArduinoTracker(
                 auto_connect=True,
                 baud_rate=self.config['arduino']['baud_rate'],
                 port_identifiers=self.config['arduino']['port_identifiers']
             )
-            
+
+            if not arduino_tracker.is_connected():
+                self.status_bar.showMessage("Arduino connection failed")
+                QMessageBox.warning(
+                    self,
+                    "Connection Error",
+                    "Could not connect to the Arduino device.\n\n"
+                    "Please check the cable and close Arduino IDE Serial Monitor/Plotter before trying again."
+                )
+                return
+
             # Initialize eye tracker
-            self.eye_tracker = EyeTracker(arduino_tracker=self.arduino_tracker)
-            if not self.eye_tracker.camera_ready:
+            eye_tracker = EyeTracker(arduino_tracker=arduino_tracker)
+            if not eye_tracker.camera_ready:
                 self.status_bar.showMessage("Camera connection failed")
+                arduino_tracker.disconnect()
                 QMessageBox.critical(
                     self,
                     "Camera Error",
@@ -444,20 +459,39 @@ class MainWindow(QMainWindow):
                 )
                 return
 
-            if self.arduino_tracker.is_connected():
-                self.is_connected = True
-                self.status_bar.showMessage("Connected to devices")
-                self.show_calibration_view()
-            else:
-                # Arduino connection failed or was cancelled
-                QMessageBox.warning(
-                    self, 
-                    "Connection Error", 
-                    "Could not connect to Arduino device. Please check connections and try again."
-                )
+            if self.arduino_tracker and self.arduino_tracker is not arduino_tracker:
+                try:
+                    self.arduino_tracker.disconnect()
+                except Exception:
+                    pass
+
+            if self.eye_tracker and self.eye_tracker is not eye_tracker:
+                try:
+                    self.eye_tracker.release()
+                except Exception:
+                    pass
+
+            self.arduino_tracker = arduino_tracker
+            self.eye_tracker = eye_tracker
+            self.is_connected = True
+            self.status_bar.showMessage("Connected to devices")
             self.show_calibration_view()
                 
         except Exception as e:
+            if eye_tracker:
+                try:
+                    eye_tracker.release()
+                except Exception:
+                    pass
+
+            if arduino_tracker:
+                try:
+                    arduino_tracker.disconnect()
+                except Exception:
+                    pass
+
+            self.is_connected = False
+            self.status_bar.showMessage("Connection failed")
             QMessageBox.critical(
                 self, 
                 "Error", 
